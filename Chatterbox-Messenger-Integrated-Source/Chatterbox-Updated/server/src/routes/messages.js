@@ -59,6 +59,7 @@ if (conversation?.status === "blocked") {
         select: "_id username",
       },
     })
+      .populate("reactions.user", "_id username")
     .lean();
 
     res.json({
@@ -93,6 +94,7 @@ if (conversation?.status === "blocked") {
         id: message.replyTo._id.toString(),
         senderId: message.replyTo.sender?._id?.toString(),
         senderName: message.replyTo.sender?.username || "User",
+
         text: message.replyTo.text || "",
         attachment: message.replyTo.isDeleted ? null
         : message.replyTo.attachment?.url 
@@ -101,6 +103,15 @@ if (conversation?.status === "blocked") {
           isDeleted: Boolean(message.replyTo.isDeleted),
       }
     : null,
+    reactions: message.isDeleted
+  ? []
+  : (message.reactions ?? [])
+      .filter((reaction) => reaction.user?._id)
+      .map((reaction) => ({
+        userId: String(reaction.user._id),
+        username: reaction.user.username || "User",
+        emoji: reaction.emoji,
+      })),
 })),
     });
   } catch (error) {

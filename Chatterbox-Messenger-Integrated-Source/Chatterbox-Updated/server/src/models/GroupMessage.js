@@ -15,7 +15,32 @@ const receiptSchema = new mongoose.Schema(
   },
   { _id: false }
 );
+/* =========================================
+   GROUP MESSAGE EMOJI REACTIONS
+========================================= */
 
+const reactionSchema = new mongoose.Schema(
+  {
+    user: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+
+    emoji: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 32,
+    },
+
+    createdAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  { _id: false }
+);
 const groupMessageSchema = new mongoose.Schema(
   {
     group: {
@@ -131,14 +156,28 @@ const groupMessageSchema = new mongoose.Schema(
      
     },
 
-   deliveredTo: {
-        type: [receiptSchema],
-        default: [],
-      },
-    readBy: {
-        type: [receiptSchema],
-        default: [],
-      },
+/* =========================================
+   DELIVERY AND READ RECEIPTS
+========================================= */
+
+deliveredTo: {
+  type: [receiptSchema],
+  default: [],
+},
+
+readBy: {
+  type: [receiptSchema],
+  default: [],
+},
+
+/* =========================================
+   EMOJI REACTIONS
+========================================= */
+
+reactions: {
+  type: [reactionSchema],
+  default: [],
+},
     },
   { timestamps: true }
 );

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { sameId } from "../utils/chatHelpers.js";
 
-/** Keep local chat state synchronized with message deletion/attachment socket events. */
+/** Sync message attachments, deletions, and reactions with socket events. */
 export default function useMessageSocketEvents({ socket, user, setChats }) {
   // Group attachment removal.
   useEffect(() => {
@@ -38,6 +38,7 @@ export default function useMessageSocketEvents({ socket, user, setChats }) {
     }
 
     socket.on("group:message:attachment-removed", handleAttachmentRemoved);
+
     return () => {
       socket.off("group:message:attachment-removed", handleAttachmentRemoved);
     };
@@ -117,4 +118,52 @@ export default function useMessageSocketEvents({ socket, user, setChats }) {
       socket.off("group:message:deleted", handleGroupMessageDeleted);
     };
   }, [socket, user, setChats]);
+
+  // Live private-message reactions.
+  // Live reactions for private and group messages.
+  useEffect(() => {
+    if (!socket) return;
+
+    function handleReactionUpdated(update) {
+      if (!update?.messageId || !Array.isArray(update.reactions)) {
+        return;
+      }
+
+      const isGroupUpdate = update.isGroup === true;
+      if (isGroupUpdate && !update.groupId) return;
+
+      setChats((previousChats) =>
+        previousChats.map((chat) => {
+          const isGroupChat = chat.isGroup === true || chat.type === "group";
+
+          if (isGroupChat !== isGroupUpdate) return chat;
+
+          if (isGroupUpdate && !sameId(chat.id ?? chat._id, update.groupId)) {
+            return chat;
+          }
+
+          const messages = chat.messages ?? [];
+          const index = messages.findIndex((message) =>
+            sameId(message.id ?? message._id, update.messageId)
+          );
+
+          if (index === -1 || messages[index].isDeleted) return chat;
+
+          const nextMessages = [...messages];
+          nextMessages[index] = {
+            ...messages[index],
+            reactions: update.reactions,
+          };
+
+          return { ...chat, messages: nextMessages };
+        })
+      );
+    }
+
+    socket.on("message:reaction:updated", handleReactionUpdated);
+
+    return () => {
+      socket.off("message:reaction:updated", handleReactionUpdated);
+    };
+  }, [socket, setChats]);
 }

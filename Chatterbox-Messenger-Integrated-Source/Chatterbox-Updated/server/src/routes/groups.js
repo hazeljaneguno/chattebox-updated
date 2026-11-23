@@ -218,8 +218,16 @@ res.json({
         }
       : null,
 
-    createdAt: message.createdAt,
-    updatedAt: message.updatedAt,
+   reactions: message.isDeleted
+  ? []
+  : (message.reactions || []).map((reaction) => ({
+      userId: String(reaction.user),
+      emoji: reaction.emoji,
+      createdAt: reaction.createdAt,
+    })),
+
+createdAt: message.createdAt,
+updatedAt: message.updatedAt,
   })),
 });
 
@@ -444,5 +452,113 @@ router.get("/:groupId/background", requireAuth, async (req, res, next) => {
     next(error);
   }
 });
+
+/* =========================================
+   ADD / CHANGE / REMOVE GROUP REACTIONS
+========================================= */
+
+router.put(
+  "/:groupId/messages/:messageId/reaction",
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { groupId, messageId } = req.params;
+      const userId = String(req.user._id);
+      const emoji = req.body?.emoji;
+
+      if (
+        !mongoose.isValidObjectId(groupId) ||
+        !mongoose.isValidObjectId(messageId)
+      ) {
+        return res.status(400).json({
+          message: "Invalid group or message ID.",
+        });
+      }
+
+      if (
+        typeof emoji !== "string" ||
+        !emoji.trim() ||
+        emoji.length > 32
+      ) {
+        return res.status(400).json({
+          message: "Invalid emoji reaction.",
+        });
+      }
+
+      // Only group members can react.
+      const group = await Group.findOne({
+        _id: groupId,
+        members: req.user._id,
+      }).select("_id members");
+
+      if (!group) {
+        return res.status(403).json({
+          message: "You are not a member of this group.",
+        });
+      }
+
+      const message = await GroupMessage.findOne({
+        _id: messageId,
+        group: group._id,
+        isDeleted: false,
+      });
+
+      if (!message) {
+        return res.status(404).json({
+          message: "Message not found.",
+        });
+      }
+
+const existing = (message.reactions || []).find(
+  (reaction) =>
+    String(reaction.user) === userId
+);
+      if (existing) {
+        if (existing.emoji === emoji) {
+          // Tapping the same emoji removes it.
+          message.reactions = message.reactions.filter(
+            (reaction) =>
+              String(reaction.user) !== userId
+          );
+        } else {
+          // Replace previous reaction.
+          existing.emoji = emoji;
+        }
+      } else {
+        message.reactions.push({
+          user: req.user._id,
+          emoji,
+        });
+      }
+
+      await message.save();
+
+      const update = {
+        groupId: String(group._id),
+        messageId: String(message._id),
+        reactions: message.reactions.map((reaction) => ({
+          userId: String(reaction.user),
+          emoji: reaction.emoji,
+          createdAt: reaction.createdAt,
+        })),
+      };
+
+      // Notify all group members through their
+      // existing authenticated user rooms.
+      const io = req.app.get("io");
+
+      for (const memberId of group.members) {
+        io?.to(`user:${String(memberId)}`).emit(
+          "group:message:reaction-updated",
+          update
+        );
+      }
+
+      return res.json(update);
+    } catch (error) {
+      next(error);
+    }
+  }
+);
 
 export default router;

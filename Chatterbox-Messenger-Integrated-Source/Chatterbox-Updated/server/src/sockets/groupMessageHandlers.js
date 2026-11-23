@@ -151,6 +151,12 @@ export function registerGroupMessageHandlers(io, socket) {
         deliveredTo: [],
         readBy: [],
 
+        reactions: (savedMessage.reactions || []).map((reaction) => ({
+          userId: String(reaction.user),
+          emoji: reaction.emoji,
+          createdAt: reaction.createdAt,
+        })),
+
         attachment: savedMessage.attachment?.url
           ? savedMessage.attachment
           : null,
@@ -168,7 +174,8 @@ export function registerGroupMessageHandlers(io, socket) {
               senderName:
                 savedMessage.replyTo.sender?.username || "User",
 
-              senderProfilePicture: savedMessage.sender?.profilePicture || "",
+              senderProfilePicture:
+  savedMessage.replyTo.sender?.profilePicture || "",
 
               text: savedMessage.replyTo.text,
 
@@ -325,6 +332,97 @@ export function registerGroupMessageHandlers(io, socket) {
         ok: false,
         message: "Unable to send group message.",
       });
+    }
+  });
+  socket.on("message:reaction:set", async (payload, callback) => {
+    if (payload?.isGroup !== true) return;
+
+    const reply = typeof callback === "function" ? callback : () => {};
+    const { messageId, emoji } = payload;
+    const cleanEmoji = typeof emoji === "string" ? emoji.trim() : null;
+
+    if (
+      !mongoose.isValidObjectId(messageId) ||
+      (emoji !== null && (!cleanEmoji || cleanEmoji.length > 32))
+    ) {
+      return reply({ ok: false, message: "Invalid reaction." });
+    }
+
+    try {
+      const reactorId = new mongoose.Types.ObjectId(userId);
+      const visibleMessage = {
+        _id: messageId,
+        isDeleted: { $ne: true },
+        deletedFor: { $ne: reactorId },
+      };
+
+      const message = await GroupMessage.findOne(visibleMessage)
+        .select("group")
+        .lean();
+
+      const group = message && await Group.findOne({
+        _id: message.group,
+        members: reactorId,
+      }).select("members").lean();
+
+      if (!group) {
+        return reply({ ok: false, message: "Group message unavailable." });
+      }
+
+      const newReaction = cleanEmoji
+        ? [{ user: reactorId, emoji: cleanEmoji, createdAt: new Date() }]
+        : [];
+
+      const updated = await GroupMessage.findOneAndUpdate(
+        { ...visibleMessage, group: group._id },
+        [
+          {
+            $set: {
+              reactions: {
+                $concatArrays: [
+                  {
+                    $filter: {
+                      input: { $ifNull: ["$reactions", []] },
+                      as: "reaction",
+                      cond: { $ne: ["$$reaction.user", reactorId] },
+                    },
+                  },
+                  { $literal: newReaction },
+                ],
+              },
+            },
+          },
+        ],
+        { new: true, timestamps: false }
+      )
+        .select("reactions")
+        .populate("reactions.user", "_id username")
+        .lean();
+
+      if (!updated) {
+        return reply({ ok: false, message: "Group message unavailable." });
+      }
+
+      const update = {
+        messageId: String(updated._id),
+        groupId: String(group._id),
+        isGroup: true,
+        reactions: updated.reactions
+          .filter(({ user }) => user?._id)
+          .map(({ user, emoji }) => ({
+            userId: String(user._id),
+            username: user.username || "User",
+            emoji,
+          })),
+      };
+
+      io.to(group.members.map((memberId) => `user:${memberId}`))
+        .emit("message:reaction:updated", update);
+
+      return reply({ ok: true });
+    } catch (error) {
+      console.error("Group message reaction error:", error);
+      return reply({ ok: false, message: "Could not save the group reaction." });
     }
   });
 }

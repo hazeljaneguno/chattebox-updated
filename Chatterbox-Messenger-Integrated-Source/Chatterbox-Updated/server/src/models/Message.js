@@ -22,8 +22,9 @@ const recipientSchema = new Schema(
   },
   { _id: false }
 );
+
 /* =========================================
-   MESSAGE REACTIONS
+   EMOJI REACTIONS
 ========================================= */
 
 const reactionSchema = new Schema(
@@ -37,6 +38,7 @@ const reactionSchema = new Schema(
     emoji: {
       type: String,
       required: true,
+      trim: true,
       maxlength: 32,
     },
 
@@ -47,6 +49,7 @@ const reactionSchema = new Schema(
   },
   { _id: false }
 );
+
 /* =========================================
    MESSAGE SCHEMA
 ========================================= */
@@ -137,6 +140,11 @@ const messageSchema = new Schema(
       ref: "Message",
       default: null,
     },
+
+    /* =====================================
+       EMOJI REACTIONS
+    ===================================== */
+
     reactions: {
       type: [reactionSchema],
       default: [],
