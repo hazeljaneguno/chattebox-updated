@@ -1,7 +1,10 @@
-
 import { useEffect } from "react";
 import { api } from "../api.js";
 import { sameId } from "../utils/chatHelpers.js";
+
+function isGroupChat(chat) {
+  return chat?.isGroup === true || chat?.type === "group";
+}
 
 export default function useConversationSettings({
   user,
@@ -9,59 +12,39 @@ export default function useConversationSettings({
   setChats,
   socket,
 }) {
-  // Load saved background when opening a conversation.
+  const userId = user?._id ?? user?.id ?? user?.userId;
+  const chatId = activeChat?.id ?? activeChat?._id;
+  const isGroup = isGroupChat(activeChat);
+  const conversationStatus = activeChat?.conversationStatus;
+
+  // Load the saved background when the chat opens or becomes accepted.
   useEffect(() => {
-    const userId = user?._id || user?.id;
-    const chatId = activeChat?.id || activeChat?._id;
-    const isGroup = Boolean(activeChat?.isGroup);
-
-    if (!userId || !chatId || !activeChat) return;
-
-    if (
-      !isGroup &&
-      activeChat.conversationStatus &&
-      activeChat.conversationStatus !== "accepted"
-    ) {
-      return;
-    }
+    if (!userId || !chatId) return;
+    if (!isGroup && conversationStatus !== "accepted") return;
 
     let cancelled = false;
 
     async function loadConversationSettings() {
       try {
-        const settings = await api.getConversationSettings(
-          chatId,
-          { isGroup }
-        );
+        const settings = await api.getConversationSettings(chatId, {
+          isGroup,
+        });
 
         if (cancelled) return;
 
-        const savedBackground =
-          settings?.background || "default";
+        const background = settings?.background ?? "default";
 
         setChats((previous) =>
-          previous.map((chat) => {
-            const currentChatId = chat.id || chat._id;
-
-            if (
-              sameId(currentChatId, chatId) &&
-              Boolean(chat.isGroup) === isGroup
-            ) {
-              return {
-                ...chat,
-                background: savedBackground,
-              };
-            }
-
-            return chat;
-          })
+          previous.map((chat) =>
+            isGroupChat(chat) === isGroup &&
+            sameId(chat.id ?? chat._id, chatId)
+              ? { ...chat, background }
+              : chat
+          )
         );
       } catch (error) {
         if (!cancelled) {
-          console.error(
-            "Could not load conversation settings:",
-            error
-          );
+          console.error("Could not load conversation settings:", error);
         }
       }
     }
@@ -71,70 +54,63 @@ export default function useConversationSettings({
     return () => {
       cancelled = true;
     };
-  }, [
-    user?._id,
-    user?.id,
-    activeChat?.id,
-    activeChat?._id,
-    activeChat?.isGroup,
-    activeChat?.conversationStatus,
-    setChats,
-  ]);
+  }, [userId, chatId, isGroup, conversationStatus, setChats]);
 
-  // Listen for background changes from either participant.
+  // Apply live background changes to the matching conversation.
   useEffect(() => {
-    if (!socket || !user) return;
+    if (!socket || !userId) return;
 
-    const currentUserId = String(user._id || user.id);
+    const currentUserId = String(userId);
 
-function handleBackgroundUpdated(update) {
-  if (!update?.participantIds || !update?.background) {
-    return;
-  }
-
-  const participants = update.participantIds.map(String);
-
-  if (!participants.includes(currentUserId)) {
-    return;
-  }
-
-  const otherUserId = participants.find(
-    (id) => id !== currentUserId
-  );
-
-  if (!otherUserId) return;
-
-  setChats((previous) =>
-    previous.map((chat) => {
-      if (chat.isGroup) return chat;
-
-      const chatId = String(chat.id || chat._id || "");
-
+    function handlePrivateBackgroundUpdated(update) {
       if (
-        chatId === otherUserId ||
-        chat.conversationKey === update.conversationKey
+        !Array.isArray(update?.participantIds) ||
+        typeof update.background !== "string"
       ) {
-        return {
-          ...chat,
-          background: update.background,
-        };
+        return;
       }
 
-      return chat;
-    })
-  );
-}
+      const participants = update.participantIds.map(String);
+      if (!participants.includes(currentUserId)) return;
 
-    socket.on(
-      "conversation:background:updated",
-      handleBackgroundUpdated
-    );
+      const otherUserId = participants.find((id) => id !== currentUserId);
+      if (!otherUserId) return;
+
+      setChats((previous) =>
+        previous.map((chat) => {
+          if (isGroupChat(chat)) return chat;
+
+          const matchesUser = sameId(chat.id ?? chat._id, otherUserId);
+          const matchesConversation =
+            Boolean(update.conversationKey) &&
+            chat.conversationKey === update.conversationKey;
+
+          return matchesUser || matchesConversation
+            ? { ...chat, background: update.background }
+            : chat;
+        })
+      );
+    }
+
+    function handleGroupBackgroundUpdated(update) {
+      if (!update?.groupId || typeof update.background !== "string") return;
+
+      setChats((previous) =>
+        previous.map((chat) =>
+          isGroupChat(chat) &&
+          sameId(chat.id ?? chat._id, update.groupId)
+            ? { ...chat, background: update.background }
+            : chat
+        )
+      );
+    }
+
+    socket.on("conversation:background:updated", handlePrivateBackgroundUpdated);
+    socket.on("group:background:updated", handleGroupBackgroundUpdated);
 
     return () => {
-      socket.off(
-        "conversation:background:updated",
-        handleBackgroundUpdated
-      );
+      socket.off("conversation:background:updated", handlePrivateBackgroundUpdated);
+      socket.off("group:background:updated", handleGroupBackgroundUpdated);
     };
-  }, [socket, user?._id, user?.id, setChats]);
+  }, [socket, userId, setChats]);
 }

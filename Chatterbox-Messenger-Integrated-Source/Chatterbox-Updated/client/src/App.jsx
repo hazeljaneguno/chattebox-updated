@@ -2952,6 +2952,7 @@ onAction={async (action, payload) => {
   activeChat={activeChat}
   loadingMessages={loadingMessages}
   user={user}
+  socketRef={socketRef}
   onReply={handleReply}
   deleteMessage={handleDeleteMessage}
   editingMessageId={editingMessageId}

@@ -1,4 +1,4 @@
-
+import { useEffect, useRef } from "react";
 import {
   Reply,
   Pencil,
@@ -15,6 +15,26 @@ export default function MessageActions({
   onDeleteForYou,
   onDeleteForEveryone,
 }) {
+  const optionsRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleOutsideTap(event) {
+      const options = optionsRef.current;
+
+      if (options && !options.contains(event.target)) {
+        onToggleMenu?.();
+      }
+    }
+
+    document.addEventListener("pointerdown", handleOutsideTap, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutsideTap, true);
+    };
+  }, [menuOpen, onToggleMenu]);
+
   return (
     <div className="message-actions">
       {!mine && (
@@ -41,7 +61,7 @@ export default function MessageActions({
         </button>
       )}
 
-      <div className="message-options">
+      <div className="message-options" ref={optionsRef}>
         <button
           type="button"
           className="message-action-icon options-message-button"

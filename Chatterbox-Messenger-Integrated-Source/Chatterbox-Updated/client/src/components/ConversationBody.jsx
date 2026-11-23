@@ -42,10 +42,17 @@ function normalizeCall(call) {
   };
 }
 
-export default function ConversationBody({
+export default function ConversationBody(props) {
+  if (!props.activeChat) return null;
+
+  return <ActiveConversationBody {...props} />;
+}
+
+function ActiveConversationBody({
   activeChat,
   loadingMessages = false,
   user,
+  socketRef,
   onReply,
   deleteMessage,
   editingMessageId,
@@ -80,10 +87,15 @@ export default function ConversationBody({
     bottomRef,
   ]);
 
-  if (!activeChat) return null;
-
   const [extras,updateExtra] = useMessageExtras(activeChat.id ?? activeChat._id);
-  const messages = (Array.isArray(activeChat.messages) ? activeChat.messages : []).map(m=>({...m,...(extras[String(m.id??m._id)]||{})}));
+  const messages = (
+  Array.isArray(activeChat.messages) ? activeChat.messages : []
+).map((message) => ({
+  ...message,
+  ...extras[String(message.id ?? message._id)],
+  reactions: Array.isArray(message.reactions) ? message.reactions : [],
+  myReaction: null,
+}));
   const act = async (message,action)=>{
     const id=String(message.id??message._id);
     if(action==="pin")return updateExtra(id,{isPinned:!message.isPinned});
@@ -93,8 +105,32 @@ export default function ConversationBody({
     if(action==="ai-image"||action==="ai-edit")return alert("AI image service is not configured.");
     if(action==="bump"||action==="report")return alert(`${action} requires server support.`);
   };
-  const react=(message,emoji)=>{const id=String(message.id??message._id);updateExtra(id,{myReaction:message.myReaction===emoji?null:emoji});};
+function react(message, emoji) {
+  const currentSocket = socketRef?.current;
+  const messageId = normalizeId(message.id ?? message._id);
+  const userId = normalizeId(user?.id ?? user?._id ?? user?.userId);
 
+  if (!messageId || !userId) return;
+
+  if (!currentSocket?.connected) {
+    alert("Chat is disconnected. Try again when it reconnects.");
+    return;
+  }
+
+  const currentEmoji = message.reactions.find(
+    (reaction) => normalizeId(reaction.userId) === userId
+  )?.emoji;
+
+  currentSocket.timeout(5000).emit(
+    "message:reaction:set",
+    { messageId, isGroup, emoji: currentEmoji === emoji ? null : emoji },
+    (error, response) => {
+      if (error || !response?.ok) {
+        alert(response?.message || "Could not confirm the reaction.");
+      }
+    }
+  );
+}
   const isGroup =
     activeChat.isGroup === true ||
     activeChat.type === "group";

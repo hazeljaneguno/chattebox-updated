@@ -392,4 +392,100 @@ export function registerPrivateMessageHandlers(io, socket) {
       });
     }
   });
+    socket.on("message:reaction:set", async (payload, callback) => {
+    const reply = typeof callback === "function" ? callback : () => {};
+
+    // Group reactions need their own handler.
+    if (payload?.isGroup === true) return;
+
+    const { messageId, emoji } = payload ?? {};
+    const cleanEmoji = typeof emoji === "string" ? emoji.trim() : null;
+
+    if (
+      !mongoose.isValidObjectId(messageId) ||
+      (emoji !== null && (!cleanEmoji || cleanEmoji.length > 32))
+    ) {
+      return reply({ ok: false, message: "Invalid reaction." });
+    }
+
+    try {
+      const reactorId = new mongoose.Types.ObjectId(userId);
+      const filter = {
+        _id: messageId,
+        isGroup: { $ne: true },
+        isDeleted: { $ne: true },
+        deletedFor: { $ne: reactorId },
+        $or: [{ sender: reactorId }, { recipient: reactorId }],
+      };
+
+      const message = await Message.findOne(filter)
+        .select("sender recipient conversationKey")
+        .lean();
+
+      if (!message?.recipient) {
+        return reply({ ok: false, message: "Message unavailable." });
+      }
+
+      const conversation = await Conversation.findOne({
+        conversationKey: message.conversationKey,
+      }).select("status").lean();
+
+      if (["blocked", "rejected"].includes(conversation?.status)) {
+        return reply({ ok: false, message: "Conversation unavailable." });
+      }
+
+      const updated = await Message.findOneAndUpdate(
+        filter,
+        [{
+          $set: {
+            reactions: {
+              $concatArrays: [
+                {
+                  $filter: {
+                    input: { $ifNull: ["$reactions", []] },
+                    as: "reaction",
+                    cond: { $ne: ["$$reaction.user", reactorId] },
+                  },
+                },
+                {
+                  $literal: cleanEmoji
+                    ? [{ user: reactorId, emoji: cleanEmoji, createdAt: new Date() }]
+                    : [],
+                },
+              ],
+            },
+          },
+        }],
+        { new: true, timestamps: false }
+      )
+        .select("reactions")
+        .populate("reactions.user", "_id username")
+        .lean();
+
+      if (!updated) {
+        return reply({ ok: false, message: "Message unavailable." });
+      }
+
+      const update = {
+        messageId: String(message._id),
+        isGroup: false,
+        reactions: updated.reactions
+          .filter(({ user }) => user?._id)
+          .map(({ user, emoji }) => ({
+            userId: String(user._id),
+            username: user.username || "User",
+            emoji,
+          })),
+      };
+
+      io.to(`user:${message.sender}`)
+        .to(`user:${message.recipient}`)
+        .emit("message:reaction:updated", update);
+
+      return reply({ ok: true });
+    } catch (error) {
+      console.error("Private message reaction error:", error);
+      return reply({ ok: false, message: "Could not save the reaction." });
+    }
+  });
 }

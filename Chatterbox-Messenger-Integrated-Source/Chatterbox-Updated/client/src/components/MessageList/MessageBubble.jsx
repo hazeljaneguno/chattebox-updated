@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import {
   Check,
   CheckCheck,
@@ -95,7 +96,42 @@ export default function MessageBubble({
   const attachment = message.attachment;
   const attachmentUrl = getAttachmentUrl(attachment);
   const isImage = attachment?.mimeType?.startsWith("image/");
+  const reactionDialogRef = useRef(null);
+  const [selectedReaction, setSelectedReaction] = useState(null);
+
+  const savedReactions = Array.isArray(message.reactions)
+    ? message.reactions.filter((reaction) => reaction?.userId && reaction.emoji)
+    : [];
+  const viewerId = String(loggedInUserId ?? user?.id ?? user?._id ?? "local-user");
+  const localReaction = message.myReaction &&
+    !savedReactions.some(({ userId }) => String(userId) === viewerId)
+    ? { userId: viewerId, username: "You", emoji: message.myReaction }
+    : null;
+  const reactionsForPopup = localReaction
+    ? [...savedReactions, localReaction]
+    : savedReactions;
   const reactionBadges = getReactionBadges(message.reactions);
+
+  if (localReaction) {
+    const badge = reactionBadges.find(({ emoji }) => emoji === localReaction.emoji);
+    if (badge) {
+      badge.count += 1;
+    } else {
+      reactionBadges.push({ emoji: localReaction.emoji, count: 1 });
+    }
+  }
+
+  const visibleReactions = reactionsForPopup.filter(
+    ({ emoji }) => selectedReaction === null || emoji === selectedReaction
+  );
+  const reactionFilters = [
+    {
+      emoji: null,
+      label: "All",
+      count: reactionBadges.reduce((total, badge) => total + badge.count, 0),
+    },
+    ...reactionBadges.map((badge) => ({ ...badge, label: badge.emoji })),
+  ];
 
   // Compare the author of this message with the author of the quoted message.
   const senderIdOf = (item) => {
@@ -356,37 +392,150 @@ export default function MessageBubble({
       </>
     )}
   </div>
+
 {!deleted && reactionBadges.length > 0 && (
   <div className="message-reaction-badges">
     {reactionBadges.map(({ emoji, count }) => (
-      <span className="message-reaction-badge" key={emoji}>
-        <span>{emoji}</span>
-        {count > 1 && (
-          <span className="message-reaction-count">
-            {count}
-          </span>
-        )}
-      </span>
+      <button
+        key={emoji}
+        type="button"
+        className="message-reaction-badge"
+        style={{ pointerEvents: "auto" }}
+        onClick={(event) => {
+          event.stopPropagation();
+          setSelectedReaction(emoji);
+          reactionDialogRef.current?.showModal();
+        }}
+        aria-haspopup="dialog"
+        aria-label={`View ${emoji} reactions (${count})`}
+      >
+        {emoji} {count}
+      </button>
     ))}
   </div>
 )}
 
-        {!editing && !deleted && (
-          <MessageActions
-            mine={mine}
-            isImage={isImage}
-            text={message.text || ""}
-            pinned={Boolean(message.isPinned)}
-            onAction={(action) => onMessageAction?.(message, action)}
-            onReact={(emoji) => onReact?.(message, emoji)}
-            menuOpen={menuOpen}
-            onReply={onReply}
-            onEdit={() => startEditing?.(message)}
-            onToggleMenu={onToggleMenu}
-            onDeleteForYou={onDeleteForYou}
-            onDeleteForEveryone={onDeleteForEveryone}
-          />
+        {!deleted && reactionBadges.length > 0 && (
+          <dialog
+            ref={reactionDialogRef}
+            className="reaction-sheet"
+            aria-label="Message reactions"
+            onClick={(event) => {
+              event.stopPropagation();
+              if (event.target === event.currentTarget) {
+                event.currentTarget.close();
+              }
+            }}
+            style={{
+              position: "fixed",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              maxWidth: "none",
+              maxHeight: "none",
+              margin: 0,
+              padding: 0,
+              border: 0,
+              background: "rgb(16 20 32 / 40%)",
+              pointerEvents: "auto",
+              boxSizing: "border-box",
+            }}
+          >
+            <section style={{
+              position: "absolute",
+              inset: "auto 0 0",
+              width: "min(100%, 440px)",
+              marginInline: "auto",
+              boxSizing: "border-box",
+              padding: "16px 18px calc(16px + env(safe-area-inset-bottom))",
+              borderRadius: "24px 24px 0 0",
+              background: "#fff",
+              color: "#20232b",
+            }}>
+              <header style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}>
+                <h3 style={{ margin: 0 }}>Reactions</h3>
+                <button
+                  type="button"
+                  aria-label="Close reactions"
+                  onClick={() => reactionDialogRef.current?.close()}
+                  style={{
+                    minWidth: 44, minHeight: 44, border: 0, borderRadius: 12,
+                    background: "#f2f3f7", color: "inherit", fontSize: 22,
+                  }}
+                >
+                  ×
+                </button>
+              </header>
+
+              <div role="group" aria-label="Filter reactions" style={{
+                display: "flex", gap: 8, overflowX: "auto", marginBlock: 12,
+              }}>
+                {reactionFilters.map(({ emoji, label, count }) => (
+                  <button
+                    key={emoji ?? "all"}
+                    type="button"
+                    aria-pressed={selectedReaction === emoji}
+                    onClick={() => setSelectedReaction(emoji)}
+                    style={{
+                      flexShrink: 0,
+                      minHeight: 44,
+                      paddingInline: 12,
+                      border: 0,
+                      borderRadius: 12,
+                      background: selectedReaction === emoji ? "#e9e2ff" : "#f2f3f7",
+                      color: selectedReaction === emoji ? "#513494" : "inherit",
+                    }}
+                  >
+                    {label} {count}
+                  </button>
+                ))}
+              </div>
+
+              <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: "40vh", overflowY: "auto" }}>
+                {visibleReactions.map(({ userId, username, emoji }) => (
+                  <li key={`${userId}-${emoji}`} style={{
+                    display: "flex", alignItems: "center", gap: 12, minHeight: 48,
+                  }}>
+                    <span aria-hidden="true" style={{
+                      display: "grid", placeItems: "center", width: 36, height: 36,
+                      flexShrink: 0, borderRadius: "50%", background: "#f0ecfa",
+                    }}>
+                      {(username || "User").charAt(0).toUpperCase()}
+                    </span>
+                    <span>{username || "User"}</span>
+                    <span style={{ marginInlineStart: "auto" }}>{emoji}</span>
+                  </li>
+                ))}
+                {visibleReactions.length === 0 && <li>No names available for this reaction.</li>}
+              </ul>
+            </section>
+          </dialog>
         )}
+
+        {!editing && !deleted && (
+  <MessageActions
+    mine={mine}
+    isImage={isImage}
+    text={message.text || ""}
+    pinned={Boolean(message.isPinned)}
+    onAction={(action) =>
+      onMessageAction?.(message, action)
+    }
+    onReact={(emoji) =>
+      onReact?.(message, emoji)
+    }
+    menuOpen={menuOpen}
+    onReply={onReply}
+    onEdit={() => startEditing?.(message)}
+    onToggleMenu={onToggleMenu}
+    onDeleteForYou={onDeleteForYou}
+    onDeleteForEveryone={onDeleteForEveryone}
+  />
+)}
       </div>
       </div>
 

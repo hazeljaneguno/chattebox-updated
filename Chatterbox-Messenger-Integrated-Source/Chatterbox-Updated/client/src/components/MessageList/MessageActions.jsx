@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Reply, MoreHorizontal, Trash2, Copy, Pin, Forward, AlarmClock, Sparkles, Pencil, Flag, BellRing, Download, X, Search, ArrowLeft, Settings2 } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -43,6 +43,63 @@ export default function MessageActions({
   });
   const [replaceIndex, setReplaceIndex] = useState(0);
 
+  const anchorRef = useRef(null);
+  const floatingMenuRef = useRef(null);
+  const emojiPickerRef = useRef(null);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || picker) return;
+
+    const menu = floatingMenuRef.current;
+    const anchor = anchorRef.current?.closest(".message-bubble-surface")
+      ?? anchorRef.current;
+    if (!menu || !anchor) return;
+
+    const positionMenu = () => {
+      const gap = 8;
+      const viewport = window.visualViewport;
+      const left = viewport?.offsetLeft ?? 0;
+      const top = viewport?.offsetTop ?? 0;
+      const right = left + (viewport?.width ?? window.innerWidth);
+      const bottom = top + (viewport?.height ?? window.innerHeight);
+      const bubble = anchor.getBoundingClientRect();
+
+      menu.style.maxWidth = `${Math.max(0, right - left - 2 * gap)}px`;
+      menu.style.maxHeight = `${Math.max(0, bottom - top - 2 * gap)}px`;
+
+      const { width, height } = menu.getBoundingClientRect();
+      const preferredLeft = mine ? bubble.right - width : bubble.left;
+      const below = bubble.bottom + gap;
+      const above = bubble.top - height - gap;
+      const preferredTop = below + height <= bottom - gap
+        || bottom - bubble.bottom >= bubble.top - top ? below : above;
+
+      menu.style.left = `${Math.max(left + gap, Math.min(preferredLeft, right - width - gap))}px`;
+      menu.style.top = `${Math.max(top + gap, Math.min(preferredTop, bottom - height - gap))}px`;
+    };
+
+    positionMenu();
+    const viewport = window.visualViewport;
+    window.addEventListener("resize", positionMenu);
+    window.addEventListener("scroll", positionMenu, true);
+    viewport?.addEventListener("resize", positionMenu);
+    viewport?.addEventListener("scroll", positionMenu);
+
+    const observer = typeof ResizeObserver === "function"
+      ? new ResizeObserver(positionMenu)
+      : null;
+    observer?.observe(anchor);
+    observer?.observe(menu);
+
+    return () => {
+      window.removeEventListener("resize", positionMenu);
+      window.removeEventListener("scroll", positionMenu, true);
+      viewport?.removeEventListener("resize", positionMenu);
+      viewport?.removeEventListener("scroll", positionMenu);
+      observer?.disconnect();
+    };
+  }, [menuOpen, picker, mine]);
+
   useEffect(() => {
     if (!menuOpen) {
       setMore(false);
@@ -52,26 +109,34 @@ export default function MessageActions({
     }
   }, [menuOpen]);
 
-  useEffect(() => {
-    if (!picker) return;
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") {
-        event.stopPropagation();
-        setPicker(false);
-        setCustomize(false);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [picker]);
-
-  const close = () => {
+  const close = useCallback(() => {
     setMore(false);
     setPicker(false);
     setCustomize(false);
     setSearch("");
     if (menuOpen) onToggleMenu?.();
-  };
+  }, [menuOpen, onToggleMenu]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleOutsideClick(event) {
+      const openPanel = picker ? emojiPickerRef.current : floatingMenuRef.current;
+      if (openPanel && !openPanel.contains(event.target)) close();
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape" && !event.defaultPrevented) close();
+    }
+
+    document.addEventListener("click", handleOutsideClick, true);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("click", handleOutsideClick, true);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [menuOpen, picker, close]);
 
   const react = (emoji) => {
     if (customize) {
@@ -149,12 +214,25 @@ export default function MessageActions({
   ];
 
   const emojiPicker = (
-    <div className="messenger-emoji-overlay" onMouseDown={event => event.stopPropagation()} onClick={event => event.stopPropagation()}>
-      <div className="messenger-emoji-backdrop" onClick={() => { setPicker(false); setCustomize(false); }} />
-      <div className="messenger-emoji-picker" role="dialog" aria-modal="true" aria-label="Choose a reaction">
+    <div
+      className="messenger-emoji-overlay"
+      onMouseDown={(event) => event.stopPropagation()}
+      onClick={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
+    >
+      <div className="messenger-emoji-backdrop" />
+      <div
+        ref={emojiPickerRef}
+        className="messenger-emoji-picker"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose a reaction"
+      >
         <div className="messenger-emoji-heading">
           <strong>{customize ? "Customize your reactions" : "Choose a reaction"}</strong>
-          <button type="button" onClick={() => { setPicker(false); setCustomize(false); }} aria-label="Close emoji picker"><X size={19} /></button>
+          <button type="button" onClick={close} aria-label="Close emoji picker"><X size={19} /></button>
         </div>
         {customize ? (
           <div className="messenger-customize-area">
@@ -191,8 +269,10 @@ export default function MessageActions({
     </div>
   );
 
+  const actionsClassName = `message-actions messenger-actions ${mine ? "messenger-actions-mine" : "messenger-actions-theirs"}`;
+
   return (
-    <div className={`message-actions messenger-actions ${mine ? "messenger-actions-mine" : "messenger-actions-theirs"}`}>
+    <div ref={anchorRef} className={actionsClassName}>
 
 <button
   type="button"
@@ -213,15 +293,40 @@ export default function MessageActions({
   <Forward size={21} strokeWidth={3} />
 </button>
 
-      {menuOpen && (
-        <div className="messenger-action-float" onClick={event => event.stopPropagation()}>
-          <div className="messenger-reactions" role="group" aria-label="React to message">
-            {reactions.map((emoji, i) => (
-              <button type="button" key={`${i}-${emoji}`} className="messenger-reaction-button" onClick={() => react(emoji)} aria-label={`React ${emoji}`}>{emoji}</button>
-            ))}
-            <button type="button" className="messenger-reaction-expand" onClick={() => { setPicker(true); setCustomize(false); setSearch(""); }} aria-label="More reactions">+</button>
-          </div>
-          {!picker && (
+      {menuOpen && !picker && typeof document !== "undefined" && createPortal(
+        <div
+          ref={floatingMenuRef}
+          className={actionsClassName}
+          style={{
+            position: "fixed",
+            inset: "auto",
+            width: "max-content",
+            height: "auto",
+            margin: 0,
+            transform: "none",
+            overflow: "auto",
+            pointerEvents: "auto",
+            zIndex: 10000,
+          }}
+          onClick={(event) => event.stopPropagation()}
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+        >
+          <div
+            className="messenger-action-float"
+            style={{
+              position: "static",
+              margin: 0,
+              transform: "none",
+              maxWidth: "min(88vw, 330px)",
+            }}
+          >
+            <div className="messenger-reactions" role="group" aria-label="React to message">
+              {reactions.map((emoji, i) => (
+                <button type="button" key={`${i}-${emoji}`} className="messenger-reaction-button" onClick={() => react(emoji)} aria-label={`React ${emoji}`}>{emoji}</button>
+              ))}
+              <button type="button" className="messenger-reaction-expand" onClick={() => { setPicker(true); setCustomize(false); setSearch(""); }} aria-label="More reactions">+</button>
+            </div>
             <div className="messenger-action-panel" role="menu" aria-label="Message actions">
               {more && <button type="button" role="menuitem" onClick={() => setMore(false)}><ArrowLeft size={17} /> Back</button>}
               {actions.map(([id, Icon, label]) => (
@@ -229,8 +334,9 @@ export default function MessageActions({
               ))}
               {!more && <button type="button" role="menuitem" onClick={() => setMore(true)}><MoreHorizontal size={17} /> More</button>}
             </div>
-          )}
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
       {menuOpen && picker && typeof document !== "undefined" && createPortal(emojiPicker, document.body)}
     </div>

@@ -106,6 +106,7 @@ export default function ChatDetails({
   autoSavePhotos = false,
   onClose,
   onAction,
+  onOpenBackgroundPicker,
   messages = [],
 }) {
   const [page, setPage] = useState("home");
@@ -236,6 +237,11 @@ export default function ChatDetails({
 
     if (internalPages.has(action)) {
       setPage(action);
+      return;
+    }
+
+    if (action === "theme" && onOpenBackgroundPicker) {
+      onOpenBackgroundPicker(chat);
       return;
     }
 
@@ -645,7 +651,7 @@ export default function ChatDetails({
               <button
                 type="button"
                 className="chat-details-item"
-                onClick={() => send("theme")}
+                onClick={() => open("theme")}
               >
                 <Palette size={19} />
                 <span>Change chat theme</span>
