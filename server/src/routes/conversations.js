@@ -487,35 +487,48 @@ router.patch("/:userId/settings", requireAuth, async (req, res, next) => {
     const key = conversationKey(req.user._id, otherUser._id);
 
     // One shared settings document for both participants.
-    const settings = await ConversationSettings.findOneAndUpdate(
+    const previousSettings = await ConversationSettings.findOneAndUpdate(
       { conversationKey: key },
       {
         $set: { background },
         $setOnInsert: { conversationKey: key },
       },
       {
-        new: true,
+        new: false,
         upsert: true,
         runValidators: true,
       }
     );
 
-const update = {
-  conversationKey: key,
-  background: settings.background,
-  participantIds: conversation.participants.map((id) =>
-    String(id)
-  ),
-};
-
     const io = req.app.get("io");
+    const participantIds = conversation.participants.map(String);
+    let noticeMessage = null;
 
-    // Notify BOTH participants.
-    for (const participantId of conversation.participants) {
-      io?.to(`user:${participantId}`).emit(
-        "conversation:background:updated",
-        update
-      );
+    if ((previousSettings?.background ?? "default") !== background) {
+      const senderName = req.user.username || "A participant";
+      const text = `${senderName} changed the chat theme to ${background}.`;
+      const notice = await Message.create({
+        conversationKey: key,
+        sender: req.user._id,
+        recipient: otherUser._id,
+        type: "conversation_notice",
+        text,
+      });
+      noticeMessage = {
+        id: String(notice._id),
+        type: notice.type,
+        senderId: String(req.user._id),
+        senderName,
+        recipientId: String(otherUser._id),
+        text: notice.text,
+        createdAt: notice.createdAt,
+      };
+    }
+
+    const update = { conversationKey: key, background, participantIds, noticeMessage };
+    for (const participantId of participantIds) {
+      const room = io?.to(`user:${participantId}`);
+      room?.emit("conversation:background:updated", update);
     }
 
     return res.json({

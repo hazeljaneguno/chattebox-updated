@@ -71,6 +71,7 @@ if (conversation?.status === "blocked") {
 
         recipientId: message.recipient.toString(),
 
+        type: message.type || "text",
         text: message.text || "",
         attachment: message.attachment?.url 
           ? message.attachment 

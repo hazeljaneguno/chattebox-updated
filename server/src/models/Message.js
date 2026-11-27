@@ -96,6 +96,7 @@ const messageSchema = new Schema(
       type: String,
       enum: [
         "text",
+        "conversation_notice",
         "group_call",
         "group_call_started",
         "group_call_ended",

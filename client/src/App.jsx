@@ -222,7 +222,6 @@ const [messageJump, setMessageJump] = useState(null);
   const [savingActiveStatus, setSavingActiveStatus] = useState(false);
 
   const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
-  const [personalBackgrounds, setPersonalBackgrounds] = useState({});
 
   // =========================
   // 9. CALL STATE
@@ -1879,12 +1878,18 @@ async function handleBackgroundChange(background) {
         )
       );
     } else {
-      if (!backgroundKey) return;
-
-      localStorage.setItem(backgroundKey, background);
-      setPersonalBackgrounds((previous) => ({
-        ...previous,
-        [backgroundKey]: background,
+      const update = await api.updateConversationBackground(chatId, background);
+      setChats((previous) => previous.map((chat) => {
+        if (chat.isGroup || !sameId(chat.id, chatId)) return chat;
+        const messages = chat.messages || [];
+        const notice = update.noticeMessage;
+        return {
+          ...chat,
+          background: update.background,
+          messages: notice && !messages.some((message) => sameId(message.id, notice.id))
+            ? [...messages, notice]
+            : messages,
+        };
       }));
     }
 
@@ -2898,31 +2903,7 @@ function renderChatContent(content) {
 // 41. CHAT BACKGROUND
 // =========================
 
-// Current logged-in user
-const backgroundUserId =
-  user?.id ?? user?._id ?? user?.userId;
-
-// Current selected conversation
-const backgroundChatId =
-  activeChat?.id ?? activeChat?._id;
-
-// Unique key for each private conversation
-const backgroundKey =
-  backgroundUserId &&
-  backgroundChatId &&
-  !activeChat?.isGroup
-    ? `chatterbox-background-${backgroundUserId}-${backgroundChatId}`
-    : null;
-
-// Determine which background to display
-let displayedBackground = null;
-
-if (activeChat?.isGroup) {
-  displayedBackground = activeChat.background;
-} else if (backgroundKey) {
-  displayedBackground =
-    personalBackgrounds?.[backgroundKey] ?? null;
-}
+const displayedBackground = activeChat?.background ?? "default";
 
 // =========================
 // 42. AUTHENTICATION SCREEN

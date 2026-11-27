@@ -20,7 +20,7 @@ export default function useConversationSettings({
   // Load the saved background when the chat opens or becomes accepted.
   useEffect(() => {
     if (!userId || !chatId) return;
-    if (!isGroup && conversationStatus !== "accepted") return;
+    if (!isGroup && conversationStatus && conversationStatus !== "accepted") return;
 
     let cancelled = false;
 
@@ -43,7 +43,7 @@ export default function useConversationSettings({
           )
         );
       } catch (error) {
-        if (!cancelled) {
+        if (!cancelled && error.status !== 403) {
           console.error("Could not load conversation settings:", error);
         }
       }
@@ -86,7 +86,14 @@ export default function useConversationSettings({
             chat.conversationKey === update.conversationKey;
 
           return matchesUser || matchesConversation
-            ? { ...chat, background: update.background }
+            ? {
+                ...chat,
+                background: update.background,
+                messages: update.noticeMessage &&
+                  !(chat.messages || []).some((message) => sameId(message.id, update.noticeMessage.id))
+                    ? [...(chat.messages || []), update.noticeMessage]
+                    : chat.messages,
+              }
             : chat;
         })
       );

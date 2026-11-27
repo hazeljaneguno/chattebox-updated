@@ -651,7 +651,7 @@ function getSenderDisplayName(message) {
               ? String(rawMessageId)
               : `message-${index}`;
 
-          if (message.type === "group_notice" && !message.isDeleted) {
+          if (["group_notice", "conversation_notice"].includes(message.type) && !message.isDeleted) {
             return (
               <div key={messageId} className="message-call-event-row">
                 <p className="group-change-notice">{message.text}</p>

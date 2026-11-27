@@ -95,8 +95,8 @@ function ChatBackgroundPicker({
       >
         <header className="background-picker-header">
           <div>
-            <h2 id="background-picker-title">Chat background</h2>
-            <p>Choose a background for this conversation.</p>
+            <h2 id="background-picker-title">Chat theme</h2>
+            <p>Choose a shared theme for this conversation.</p>
           </div>
 
           <button
@@ -146,7 +146,7 @@ function ChatBackgroundPicker({
 
           {saving && (
             <p className="background-picker-saving">
-              Saving background...
+              Saving theme...
             </p>
           )}
         </div>
