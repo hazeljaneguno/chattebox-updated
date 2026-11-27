@@ -51,7 +51,7 @@ if (conversation?.status === "blocked") {
     })
       .sort({ createdAt: -1, _id: -1 })
       .limit(500)
-      .populate("sender", "_id username")
+      .populate("sender", "_id username profilePicture")
       .populate({
         path: "replyTo",
         select: "_id text sender attachment isDeleted",
@@ -70,6 +70,7 @@ if (conversation?.status === "blocked") {
 
         senderId: message.sender?._id?.toString(),
         senderName: message.sender?.username || "User",
+        senderProfilePicture: message.sender?.profilePicture || "",
 
         recipientId: message.recipient.toString(),
 

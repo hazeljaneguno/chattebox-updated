@@ -663,3 +663,113 @@
   padding: 0 10px;
   color: #fca5a5;
 }
+
+
+.group-call-room .group-video-stage.has-screen-share {
+  grid-template-rows: minmax(0, 3fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.group-call-room .has-screen-share .group-camera-stage {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.group-presenting-cameras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  grid-auto-rows: clamp(64px, 13vh, 120px);
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .group-presenting-cameras {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+}
+
+
+.group-call-room .group-screen-stage {
+  position: relative;
+}
+
+.group-share-fullscreen-button {
+  position: absolute;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(8px, env(safe-area-inset-right));
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid #526176;
+  border-radius: 8px;
+  background: #151e2d;
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.group-call-room .group-screen-stage:fullscreen,
+.group-call-room .group-screen-stage-expanded {
+  padding: 0;
+  background: #070b13;
+}
+
+.group-call-room .group-screen-stage-expanded {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  visibility: visible;
+}
+
+.group-call-modal:has(.group-screen-stage-expanded) {
+  visibility: hidden;
+}
+
+
+.meeting-reaction-control {
+  position: relative;
+}
+
+.meeting-reaction-picker,
+.meeting-reaction-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 8;
+  padding: 6px;
+  border: 1px solid #526176;
+  border-radius: 12px;
+  background: #151e2d;
+  color: #fff;
+}
+
+.meeting-reaction-picker {
+  display: grid;
+  grid-template-columns: repeat(3, 38px);
+  gap: 4px;
+}
+
+.meeting-reaction-picker button {
+  min-height: 38px;
+  border: 0;
+  border-radius: 8px;
+  background: #27364b;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.meeting-reaction-popover {
+  display: grid;
+  justify-items: center;
+  min-width: 58px;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.meeting-reaction-popover span {
+  font-size: 26px;
+}

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { Router } from "express";
 import mongoose from "mongoose";
 import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
@@ -152,5 +153,63 @@ accessToken.addGrant({
     });
   }
 });
+
+// Meeting chat belongs to the active call, separate from the regular group chat.
+router.route("/:callId/chat")
+  .get(requireAuth, handleMeetingChat)
+  .post(requireAuth, handleMeetingChat);
+
+async function handleMeetingChat(req, res, next) {
+  try {
+    const { callId } = req.params;
+    if (!mongoose.isValidObjectId(callId)) {
+      return res.status(400).json({ message: "Invalid call ID." });
+    }
+
+    const userId = String(req.user._id);
+    const access = {
+      _id: callId,
+      status: "active",
+      $or: [
+        { host: userId },
+        { invitations: { $elemMatch: { user: userId, status: "accepted" } } },
+      ],
+    };
+    const query = GroupCall.findOne(access).select("group");
+    if (req.method === "GET") query.select("+meetingMessages");
+    const call = await query.lean();
+    if (!call || !await Group.exists({ _id: call.group, members: userId })) {
+      return res.status(404).json({ message: "Meeting chat is unavailable." });
+    }
+
+    if (req.method === "GET") {
+      res.set("Cache-Control", "no-store");
+      return res.json({ messages: call.meetingMessages ?? [] });
+    }
+
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!text || text.length > 2000) {
+      return res.status(400).json({ message: "Enter a message of up to 2,000 characters." });
+    }
+    const message = {
+      id: randomUUID(),
+      senderId: userId,
+      senderName: req.user.username || "Member",
+      text,
+      createdAt: new Date(),
+    };
+    const result = await GroupCall.updateOne(
+      access,
+      { $push: { meetingMessages: { $each: [message], $slice: -200 } } },
+      { timestamps: false, runValidators: true }
+    );
+    if (!result.matchedCount) {
+      return res.status(404).json({ message: "Meeting chat is unavailable." });
+    }
+    return res.status(201).json({ message });
+  } catch (error) {
+    next(error);
+  }
+}
 
 export default router;

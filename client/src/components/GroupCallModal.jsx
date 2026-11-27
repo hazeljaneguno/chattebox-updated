@@ -4,14 +4,18 @@ import {
   CircleDot,
   Hand,
   LoaderCircle,
+  Maximize,
+  Minimize,
   MessageSquare,
   PhoneOff,
+  Smile,
   Users,
 } from "lucide-react";
 import {
   ControlBar,
   GridLayout,
   ParticipantTile,
+  TrackLoop,
   RoomAudioRenderer,
   RoomContext,
   useParticipantAttribute,
@@ -20,12 +24,23 @@ import {
 } from "@livekit/components-react";
 import { ConnectionState, RoomEvent, Track } from "livekit-client";
 
+import { api } from "../api.js";
+
 import "@livekit/components-styles";
 import "./GroupCallModal.css";
 import "./CallMessageNotifications.css";
 
 const HAND_ATTRIBUTE = "chatterbox.handRaised";
-const MEETING_CHAT_TOPIC = "chatterbox.meeting-chat.v1";
+const MEETING_REACTION_TOPIC = "chatterbox.meeting-reaction.v1";
+const MEETING_REACTIONS = ["👍", "❤️", "👏", "😂", "🎉", "😮"];
+
+function mergeMeetingMessages(previous, incoming) {
+  const byId = new Map(previous.map((message) => [message.id, message]));
+  for (const message of incoming) byId.set(message.id, message);
+  return [...byId.values()]
+    .sort((first, second) => Date.parse(first.createdAt) - Date.parse(second.createdAt))
+    .slice(-200);
+}
 
 function GroupVideoGrid() {
   const tracks = useTracks(
@@ -43,22 +58,94 @@ function GroupVideoGrid() {
     (track) => track.source === Track.Source.Camera
   );
   const isPresenting = screenTracks.length > 0;
+  const screenStageRef = useRef(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [expandedShare, setExpandedShare] = useState(false);
+  const shareIsFullscreen = nativeFullscreen || expandedShare;
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      const stage = screenStageRef.current;
+      setNativeFullscreen(Boolean(stage && document.fullscreenElement === stage));
+    };
+
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (!isPresenting) {
+      setExpandedShare(false);
+      setNativeFullscreen(false);
+    }
+  }, [isPresenting]);
+
+  useEffect(() => {
+    if (!expandedShare) return;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setExpandedShare(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [expandedShare]);
+
+  async function toggleShareFullscreen() {
+    const stage = screenStageRef.current;
+    if (!stage) return;
+
+    if (document.fullscreenElement === stage) {
+      await document.exitFullscreen().catch(() => {});
+    } else if (expandedShare) {
+      setExpandedShare(false);
+    } else {
+      try {
+        if (stage.requestFullscreen) {
+          await stage.requestFullscreen();
+          return;
+        }
+      } catch {
+        // Some mobile browsers and WebViews restrict element fullscreen.
+      }
+      if (screenStageRef.current === stage) setExpandedShare(true);
+    }
+  }
+
 
   return (
-    <div className="group-video-stage">
-      <div
-        className={
-          isPresenting ? "group-screen-stage" : "group-camera-stage"
-        }
-        aria-label={isPresenting ? "Shared screens" : "Participant cameras"}
-      >
-        <GridLayout
-          key={isPresenting ? "screens" : "cameras"}
-          tracks={isPresenting ? screenTracks : cameraTracks}
-          className="group-video-grid"
+    <div className={`group-video-stage${isPresenting ? " has-screen-share" : ""}`}>
+      {isPresenting && (
+        <div
+          ref={screenStageRef}
+          className={`group-screen-stage${expandedShare ? " group-screen-stage-expanded" : ""}`}
+          aria-label="Shared screens"
         >
-          <ParticipantTile />
-        </GridLayout>
+          <button
+            type="button"
+            className="group-share-fullscreen-button"
+            onClick={toggleShareFullscreen}
+            aria-label={shareIsFullscreen ? "Exit fullscreen" : "Fullscreen shared screen"}
+          >
+            {shareIsFullscreen ? <Minimize size={18} /> : <Maximize size={18} />}
+            {shareIsFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          </button>
+          <GridLayout tracks={screenTracks} className="group-video-grid">
+            <ParticipantTile />
+          </GridLayout>
+        </div>
+      )}
+
+      <div className="group-camera-stage" aria-label="Participant cameras">
+        {isPresenting ? (
+          <div className="group-presenting-cameras">
+            <TrackLoop tracks={cameraTracks}>
+              <ParticipantTile />
+            </TrackLoop>
+          </div>
+        ) : (
+          <GridLayout tracks={cameraTracks} className="group-video-grid">
+            <ParticipantTile />
+          </GridLayout>
+        )}
       </div>
     </div>
   );
@@ -154,48 +241,85 @@ function GroupCallContent({
   const [meetingDraft, setMeetingDraft] = useState("");
   const [sendingMeetingMessage, setSendingMeetingMessage] = useState(false);
   const [meetingChatError, setMeetingChatError] = useState("");
+  const [meetingHistoryError, setMeetingHistoryError] = useState("");
   const [meetingUnread, setMeetingUnread] = useState(0);
   const seenMeetingMessageIds = useRef(new Set());
   const meetingMessagesEndRef = useRef(null);
   const chatOpenRef = useRef(false);
   chatOpenRef.current = chatOpen;
 
+  const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
+  const [meetingReaction, setMeetingReaction] = useState(null);
+  const reactionTimeout = useRef(null);
+
+  function showMeetingReaction(emoji, name) {
+    clearTimeout(reactionTimeout.current);
+    setMeetingReaction({ emoji, name });
+    reactionTimeout.current = setTimeout(() => setMeetingReaction(null), 2500);
+  }
+
   useEffect(() => {
     const decoder = new TextDecoder();
-    function handleMeetingData(payload, participant, _kind, topic) {
-      if (topic !== MEETING_CHAT_TOPIC) return;
-      let message;
-      try {
-        message = JSON.parse(decoder.decode(payload));
-      } catch {
-        return;
-      }
-      if (
-        message?.type !== "meeting-message" ||
-        String(message.callId) !== String(call.callId) ||
-        !message.id ||
-        typeof message.text !== "string" ||
-        !message.text.trim() ||
-        message.text.length > 2000 ||
-        !participant
-      ) return;
-      if (seenMeetingMessageIds.current.has(message.id)) return;
-      seenMeetingMessageIds.current.add(message.id);
-      const incoming = {
-        id: message.id,
-        senderId: participant.identity,
-        senderName: participant.name || participant.identity || "Member",
-        text: message.text.trim(),
-        createdAt: Date.now(),
-      };
-      setMeetingMessages((previous) => [...previous, incoming]);
-      if (!chatOpenRef.current) {
-        setMeetingUnread((count) => count + 1);
-        setPopupMessage(incoming);
+    function receiveReaction(payload, participant, _kind, topic) {
+      if (topic !== MEETING_REACTION_TOPIC || !participant) return;
+      const emoji = decoder.decode(payload);
+      if (MEETING_REACTIONS.includes(emoji)) {
+        showMeetingReaction(emoji, participant.name || "Member");
       }
     }
-    room.on(RoomEvent.DataReceived, handleMeetingData);
-    return () => room.off(RoomEvent.DataReceived, handleMeetingData);
+
+    room.on(RoomEvent.DataReceived, receiveReaction);
+    return () => {
+      room.off(RoomEvent.DataReceived, receiveReaction);
+      clearTimeout(reactionTimeout.current);
+    };
+  }, [room]);
+
+  async function sendMeetingReaction(emoji) {
+    setReactionPickerOpen(false);
+    try {
+      await room.localParticipant.publishData(new TextEncoder().encode(emoji), {
+        topic: MEETING_REACTION_TOPIC,
+        reliable: true,
+      });
+      showMeetingReaction(emoji, "You");
+    } catch {
+      setActionError("Could not send the reaction. Try again.");
+    }
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    let nextRefresh;
+    let initialLoad = true;
+
+    async function refresh() {
+      try {
+        const { messages } = await api.meetingMessages(call.callId);
+        if (cancelled) return;
+
+        const incoming = messages.filter((message) => !seenMeetingMessageIds.current.has(message.id));
+        for (const message of incoming) seenMeetingMessageIds.current.add(message.id);
+        if (incoming.length) setMeetingMessages((previous) => mergeMeetingMessages(previous, incoming));
+        const received = incoming.filter((message) => message.senderId !== room.localParticipant.identity);
+        if (!initialLoad && received.length && !chatOpenRef.current) {
+          setMeetingUnread((count) => count + received.length);
+          setPopupMessage(received.at(-1));
+        }
+        initialLoad = false;
+        setMeetingHistoryError("");
+      } catch {
+        if (!cancelled) setMeetingHistoryError("Could not load meeting chat. Retrying…");
+      } finally {
+        if (!cancelled) nextRefresh = setTimeout(refresh, 2000);
+      }
+    }
+
+    refresh();
+    return () => {
+      cancelled = true;
+      clearTimeout(nextRefresh);
+    };
   }, [room, call.callId]);
 
   useEffect(() => {
@@ -212,24 +336,10 @@ function GroupCallContent({
     if (!text || sendingMeetingMessage || room.state !== ConnectionState.Connected) return;
     setSendingMeetingMessage(true);
     setMeetingChatError("");
-    const message = {
-      type: "meeting-message",
-      callId: String(call.callId),
-      id: `${room.localParticipant.identity}:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-      text: text.slice(0, 2000),
-    };
     try {
-      await room.localParticipant.publishData(
-        new TextEncoder().encode(JSON.stringify(message)),
-        { reliable: true, topic: MEETING_CHAT_TOPIC }
-      );
+      const { message } = await api.sendMeetingMessage(call.callId, text);
       seenMeetingMessageIds.current.add(message.id);
-      setMeetingMessages((previous) => [...previous, {
-        ...message,
-        senderId: room.localParticipant.identity,
-        senderName: room.localParticipant.name || "You",
-        createdAt: Date.now(),
-      }]);
+      setMeetingMessages((previous) => mergeMeetingMessages(previous, [message]));
       setMeetingDraft("");
     } catch (error) {
       console.error("Failed to send meeting message:", error);
@@ -458,6 +568,7 @@ function toggleChat() {
       ))}
       <div ref={meetingMessagesEndRef} />
     </div>
+    {meetingHistoryError && <p className="meeting-chat-error" role="status">{meetingHistoryError}</p>}
     {meetingChatError && <p className="meeting-chat-error" role="alert">{meetingChatError}</p>}
     <form className="meeting-chat-composer" onSubmit={sendMeetingMessage}>
       <input
@@ -501,6 +612,34 @@ function toggleChat() {
               </span>
               {chatOpen ? "Hide chat" : "Chat"}
             </button>
+
+            <div className="meeting-reaction-control">
+              <button
+                type="button"
+                className="lk-button group-call-extra-button"
+                aria-expanded={reactionPickerOpen}
+                disabled={!isConnected}
+                onClick={() => setReactionPickerOpen((open) => !open)}
+              >
+                <Smile size={17} aria-hidden="true" />
+                React
+              </button>
+              {reactionPickerOpen && (
+                <div className="meeting-reaction-picker" aria-label="Meeting reactions">
+                  {MEETING_REACTIONS.map((emoji) => (
+                    <button key={emoji} type="button" onClick={() => sendMeetingReaction(emoji)}>
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {meetingReaction && (
+                <output className="meeting-reaction-popover">
+                  <span>{meetingReaction.emoji}</span>
+                  {meetingReaction.name}
+                </output>
+              )}
+            </div>
 
             <RaiseHandButton
               participant={room.localParticipant}

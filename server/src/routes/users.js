@@ -33,7 +33,7 @@ router.get("/", requireAuth, async (req, res) => {
     }
 
     const directory = await User.find(filter)
-      .select("_id username email role")
+      .select("_id username email role profilePicture")
       .sort({ username: 1 })
       .limit(50)
       .lean();
@@ -46,7 +46,7 @@ router.get("/", requireAuth, async (req, res) => {
       ? [...activity.keys()].filter((id) => id !== String(req.user._id) && !knownIds.has(id))
       : [];
     const conversationUsers = missingIds.length
-      ? await User.find({ _id: { $in: missingIds } }).select("_id username email role").lean()
+      ? await User.find({ _id: { $in: missingIds } }).select("_id username email role profilePicture").lean()
       : [];
     const users = [...directory, ...conversationUsers];
 
@@ -54,6 +54,7 @@ router.get("/", requireAuth, async (req, res) => {
       users: users.map((user) => ({
         id: user._id.toString(),
         username: user.username,
+        profilePicture: user.profilePicture || "",
         email: user.email,
         role: user.role || "member",
         ...(activity && { latestMessage: activity.get(String(user._id)) || null }),

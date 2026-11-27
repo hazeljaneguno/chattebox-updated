@@ -18,6 +18,7 @@ import {
 
 import "./MessageStyles.css";
 
+import { initials, colorFor } from "../Avatar.jsx";
 import MessageBubble from "./MessageBubble.jsx";
 import MessageLightbox from "./MessageLightbox.jsx";
 
@@ -773,6 +774,9 @@ function getSenderDisplayName(message) {
           }
 
           const mine = isMine(message);
+          const showSenderAvatar = !isGroup && !mine && !message.isDeleted;
+          const senderName = message.senderName || activeChat?.username || activeChat?.name || "User";
+          const senderPhoto = message.senderProfilePicture || activeChat?.profilePicture;
           const readers = mine ? (message.readBy || []).map((receipt) => {
             const member = isGroup
               ? activeChat?.members?.find((person) =>
@@ -847,6 +851,22 @@ function getSenderDisplayName(message) {
                   handleTouchCancel
                 }
               >
+                {showSenderAvatar && (
+                  <span
+                    className={`private-message-avatar ${colorFor(senderName)}`}
+                    role="img"
+                    aria-label={senderName}
+                  >
+                    {initials(senderName)}
+                    {senderPhoto && (
+                      <img
+                        src={getAttachmentUrl({ url: senderPhoto })}
+                        alt=""
+                        onError={(event) => { event.currentTarget.hidden = true; }}
+                      />
+                    )}
+                  </span>
+                )}
                 <MessageBubble
                   message={message}
                   mine={mine}

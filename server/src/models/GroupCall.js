@@ -43,6 +43,14 @@ const invitationSchema = new mongoose.Schema(
   { _id: false }
 );
 
+const meetingMessageSchema = new mongoose.Schema({
+  id: { type: String, required: true },
+  senderId: { type: String, required: true },
+  senderName: { type: String, required: true },
+  text: { type: String, required: true, maxlength: 2000 },
+  createdAt: { type: Date, required: true },
+}, { _id: false });
+
 const groupCallSchema = new mongoose.Schema(
   {
     group: {
@@ -81,6 +89,12 @@ const groupCallSchema = new mongoose.Schema(
       default: 10,
       min: 1,
       max: 10,
+    },
+
+    meetingMessages: {
+      type: [meetingMessageSchema],
+      default: [],
+      select: false,
     },
 
     invitations: {

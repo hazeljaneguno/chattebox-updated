@@ -366,6 +366,15 @@ export const api = {
   getPendingCalls: () =>
     request("/api/conversations/calls/pending"),
 
+  meetingMessages: (callId) =>
+    request(`/api/group-calls/${encodeURIComponent(callId)}/chat`, { cache: "no-store" }),
+
+  sendMeetingMessage: (callId, text) =>
+    request(`/api/group-calls/${encodeURIComponent(callId)}/chat`, {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+
   getGroupCallToken: (
     groupId,
     callId
