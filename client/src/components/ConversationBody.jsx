@@ -51,6 +51,7 @@ export default function ConversationBody(props) {
 function ActiveConversationBody({
   activeChat,
   loadingMessages = false,
+  pendingPhotos,
   messageJump,
   user,
   socketRef,
@@ -74,6 +75,11 @@ function ActiveConversationBody({
   ongoingGroupCall = null,
   onJoinGroupCall,
 }) {
+  const conversationPhotos = pendingPhotos?.filter((photo) =>
+    normalizeId(photo.chatId) === normalizeId(activeChat.id ?? activeChat._id) &&
+    photo.isGroup === Boolean(activeChat.isGroup)
+  ) ?? [];
+
   useEffect(() => {
     if (!activeChat || loadingMessages) return;
 
@@ -86,6 +92,7 @@ function ActiveConversationBody({
     activeChat?._id,
     activeChat?.messages?.length,
     loadingMessages,
+    conversationPhotos.length,
     bottomRef,
   ]);
 
@@ -187,6 +194,7 @@ function react(message, emoji) {
 
       {!loadingMessages &&
         messages.length === 0 &&
+        conversationPhotos.length === 0 &&
         !hasActiveGroupCall && (
           <div className="welcome-state">
             <div className="welcome-icon">
@@ -211,6 +219,7 @@ function react(message, emoji) {
         receiptSocket={receiptSocket}
         messageJump={messageJump}
         messages={messages}
+        pendingPhotos={conversationPhotos}
         onMessageAction={act}
         onReact={react}
         user={user}

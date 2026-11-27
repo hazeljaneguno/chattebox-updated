@@ -7,7 +7,6 @@ import {
   Check as SaveIcon,
   FileText,
   Pin,
-  ZoomIn,
 } from "lucide-react";
 
 import { initials } from "../Avatar.jsx";
@@ -90,6 +89,7 @@ export default function MessageBubble({
   onReply,
   removeImage,
   onOpenImage,
+  photoStack,
   jumpToMessage,
   menuOpen,
   onToggleMenu,
@@ -236,8 +236,8 @@ export default function MessageBubble({
 
   <div
     className={`message-bubble ${
-      emojiOnly ? "bubble-emoji-only" : mine ? "bubble-mine" : "bubble-theirs"
-    } ${photoVisible ? "bubble-photo" : ""} ${editing ? "bubble-editing" : ""} ${
+      photoVisible ? "bubble-photo" : emojiOnly ? "bubble-emoji-only" : mine ? "bubble-mine" : "bubble-theirs"
+    } ${editing ? "bubble-editing" : ""} ${
       deleted ? "bubble-deleted" : ""
     } ${!deleted && message.isPinned ? "bubble-pinned" : ""}`}
   >
@@ -339,12 +339,21 @@ export default function MessageBubble({
             ) : isImage ? (
               <button
                 type="button"
-                className="message-image-button"
+                className={`message-image-button ${photoStack ? "message-photo-stack" : ""}`}
                 onClick={() =>
                   onOpenImage(attachment, message)
                 }
-                aria-label="View image larger"
+                aria-label={photoStack ? `Open photo stack of ${photoStack.length} photos` : "View image larger"}
               >
+                {photoStack?.slice(-3, -1).map((photo, index) => (
+                  <img
+                    key={index}
+                    className="message-photo-stack-layer"
+                    src={getAttachmentUrl(photo.attachment)}
+                    alt=""
+                    loading="lazy"
+                  />
+                ))}
                 <img
                   draggable={false}
                   src={attachmentUrl}
@@ -356,11 +365,7 @@ export default function MessageBubble({
                   loading="lazy"
                   onError={() => setFailedMediaUrl(attachmentUrl)}
                 />
-
-                <span className="image-zoom-hint">
-                  <ZoomIn size={16} />
-                  View image
-                </span>
+                {photoStack && <span className="message-photo-stack-count">{photoStack.length}</span>}
               </button>
             ) : media === "video" ? (
               <video

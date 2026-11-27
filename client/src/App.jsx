@@ -796,6 +796,7 @@ function clearCallMessageNotifications(chatId) {
   // =========================
 
   const {
+    pendingPhotos,
     sendMessage,
     handleReply,
     handleDeleteMessage,
@@ -3161,6 +3162,7 @@ onAction={async (action, payload) => {
 
 
 <ConversationBody
+  pendingPhotos={pendingPhotos}
   receiptSocket={socketStatus === "connected" ? socket : null}
   activeChat={conversationChat}
   messageJump={sameId(messageJump?.chatId, activeChat.id) ? messageJump : null}

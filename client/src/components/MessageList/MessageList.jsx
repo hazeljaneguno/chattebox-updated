@@ -280,6 +280,7 @@ function CallEvent({
 export default function MessageList({
   
   messages = [],
+  pendingPhotos = [],
   messageJump,
   user,
   currentUserId,
@@ -339,7 +340,10 @@ export default function MessageList({
       if (message.readBy?.some(({ userId }) => sameId(userId, loggedInUserId))) continue;
       const id = getMessageId(message);
       const row = id == null ? null : messageRefs.current.get(String(id));
-      if (row) unseenRows.set(row, String(id));
+      if (row) {
+        if (!unseenRows.has(row)) unseenRows.set(row, []);
+        unseenRows.get(row).push(String(id));
+      }
     }
     if (!unseenRows.size) return;
 
@@ -348,12 +352,13 @@ export default function MessageList({
       if (document.visibilityState !== "visible" || !receiptSocket.connected) return;
       for (const { target, isIntersecting } of entries) {
         if (!isIntersecting) continue;
-        const messageId = unseenRows.get(target);
-        if (!messageId || pendingSeenReceipts.current.has(messageId)) continue;
-        pendingSeenReceipts.current.add(messageId);
-        receiptSocket.timeout(5000).emit(event, { messageId, status: "seen" }, () => {
-          pendingSeenReceipts.current.delete(messageId);
-        });
+        for (const messageId of unseenRows.get(target) ?? []) {
+          if (pendingSeenReceipts.current.has(messageId)) continue;
+          pendingSeenReceipts.current.add(messageId);
+          receiptSocket.timeout(5000).emit(event, { messageId, status: "seen" }, () => {
+            pendingSeenReceipts.current.delete(messageId);
+          });
+        }
       }
     });
 
@@ -699,6 +704,42 @@ function getSenderDisplayName(message) {
     }
   }
 
+  function isStackablePhoto(message) {
+    return Boolean(
+      message && !message.isDeleted && !message.text?.trim() &&
+      !getReplyTarget(message) &&
+      !sameId(editingMessageId, getMessageId(message)) &&
+      getAttachmentMediaType(message.attachment) === "image" &&
+      getAttachmentUrl(message.attachment)
+    );
+  }
+
+  const orderedMessages = safeMessages.filter(Boolean);
+  const photoStacks = new Map();
+  const stackedPhotos = new Set();
+
+  for (let start = 0; start < orderedMessages.length;) {
+    const first = orderedMessages[start];
+    let end = start + 1;
+    if (isStackablePhoto(first)) {
+      while (
+        isStackablePhoto(orderedMessages[end]) &&
+        sameId(getSenderId(first), getSenderId(orderedMessages[end])) &&
+        !startsMessageBatch(
+          new Date(orderedMessages[end].createdAt),
+          new Date(orderedMessages[end - 1].createdAt)
+        )
+      ) end += 1;
+    }
+    if (end - start >= 4) {
+      photoStacks.set(end - 1, orderedMessages.slice(start, end));
+      for (let index = start; index < end - 1; index += 1) stackedPhotos.add(index);
+    }
+    start = end;
+  }
+
+  let photoRunIndex = 0;
+
   return (
     <>
       <div className="message-list">
@@ -714,7 +755,7 @@ function getSenderDisplayName(message) {
           />
         )}
 
-        {safeMessages.filter(Boolean).map((message, index, orderedMessages) => {
+        {orderedMessages.map((message, index) => {
 
           const rawMessageId =
             getMessageId(message);
@@ -725,15 +766,26 @@ function getSenderDisplayName(message) {
               : `message-${index}`;
 
           const timestamp = message.createdAt ? new Date(message.createdAt) : null;
-          const previousTimestamp = orderedMessages[index - 1]?.createdAt;
-          const separator = startsMessageBatch(
+          const previousMessage = orderedMessages[index - 1];
+          const previousTimestamp = previousMessage?.createdAt;
+          const startsBatch = startsMessageBatch(
             timestamp,
             previousTimestamp ? new Date(previousTimestamp) : null
-          ) && (
+          );
+          const followsPhoto = !startsBatch && isStackablePhoto(message) &&
+            isStackablePhoto(previousMessage) &&
+            sameId(getSenderId(previousMessage), getSenderId(message));
+          photoRunIndex = followsPhoto ? photoRunIndex + 1 : 0;
+          const separator = startsBatch && (
             <time className="message-batch-time" dateTime={timestamp.toISOString()}>
               {formatDateTime(timestamp)}
             </time>
           );
+
+          if (stackedPhotos.has(index)) {
+            return <Fragment key={messageId}>{separator}</Fragment>;
+          }
+          const photoStack = photoStacks.get(index);
 
           if (["group_notice", "conversation_notice"].includes(message.type) && !message.isDeleted) {
             return (
@@ -843,17 +895,11 @@ function getSenderDisplayName(message) {
               {separator}
               <div
                 ref={(element) => {
-                  if (rawMessageId == null) return;
-
-                  if (element) {
-                    messageRefs.current.set(
-                      messageId,
-                      element
-                    );
-                  } else {
-                    messageRefs.current.delete(
-                      messageId
-                    );
+                  for (const photo of photoStack ?? [message]) {
+                    const id = getMessageId(photo);
+                    if (id == null) continue;
+                    if (element) messageRefs.current.set(String(id), element);
+                    else messageRefs.current.delete(String(id));
                   }
                 }}
                 className={`message-row ${
@@ -861,9 +907,12 @@ function getSenderDisplayName(message) {
                     ? "message-mine"
                     : "message-theirs"
                 } ${
-                  highlightedMessageId === messageId
+                  (highlightedMessageId === messageId ||
+                    photoStack?.some((photo) => sameId(highlightedMessageId, getMessageId(photo))))
                     ? "message-highlighted"
                     : ""
+                } ${followsPhoto && !photoStack ? "message-photo-continuation" : ""} ${
+                  !photoStack && photoRunIndex % 2 === 1 ? "message-photo-offset" : ""
                 }`}
                 onTouchStart={(event) =>
                   handleTouchStart(
@@ -929,6 +978,7 @@ function getSenderDisplayName(message) {
                   }
                   removeImage={removeImage}
                   onOpenImage={openImage}
+                  photoStack={photoStack}
                   jumpToMessage={
                     jumpToMessage
                   }
@@ -979,7 +1029,16 @@ function getSenderDisplayName(message) {
           );
         })}
 
-        {safeMessages.length === 0 &&
+        {pendingPhotos.map(({ url }) => (
+          <div key={url} className="message-row message-mine">
+            <div className="message-pending-photo" role="status" aria-label="Sending photo">
+              <img src={url} alt="" />
+              <span><LoaderCircle size={26} aria-hidden="true" /></span>
+            </div>
+          </div>
+        ))}
+
+        {safeMessages.length === 0 && pendingPhotos.length === 0 &&
           !hasActiveGroupCall && (
             <div className="message-empty-state">
               <div className="message-empty-icon">

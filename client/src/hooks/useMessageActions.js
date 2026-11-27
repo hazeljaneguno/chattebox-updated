@@ -1,5 +1,6 @@
 
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { getAttachmentMediaType } from "../utils/messageHelpers";
 import { api } from "../api.js";
 
 export default function useMessageActions({
@@ -20,6 +21,14 @@ export default function useMessageActions({
   savingEdit,
 }) {
   // Keep the original message unchanged while editing.
+  const [pendingPhotos, setPendingPhotos] = useState([]);
+  const pendingUrls = useRef(new Set());
+
+  useEffect(() => () => {
+    for (const url of pendingUrls.current) URL.revokeObjectURL(url);
+    pendingUrls.current.clear();
+  }, []);
+
   const originalMessageRef = useRef(null);
 
   // Reply to a message.
@@ -53,6 +62,20 @@ export default function useMessageActions({
     const eventName = isGroup
       ? "group:message:send"
       : "message:send";
+
+    const photoUrl = selectedFile && getAttachmentMediaType({
+      mimeType: selectedFile.type,
+      originalName: selectedFile.name,
+    }) === "image" ? URL.createObjectURL(selectedFile) : null;
+
+    if (photoUrl) {
+      pendingUrls.current.add(photoUrl);
+      setPendingPhotos((photos) => [...photos, {
+        url: photoUrl,
+        chatId: activeChat.id,
+        isGroup: Boolean(isGroup),
+      }]);
+    }
 
     try {
       let attachment = null;
@@ -124,6 +147,12 @@ export default function useMessageActions({
     } catch (error) {
       setError(error.message || "Unable to send your message.");
       throw error;
+    } finally {
+      if (photoUrl) {
+        setPendingPhotos((photos) => photos.filter(({ url }) => url !== photoUrl));
+        pendingUrls.current.delete(photoUrl);
+        URL.revokeObjectURL(photoUrl);
+      }
     }
   }, [
     activeChat,
@@ -329,6 +358,7 @@ export default function useMessageActions({
   }, [socketRef, setError]);
 
   return {
+    pendingPhotos,
     sendMessage,
     handleReply,
     handleDeleteMessage,
