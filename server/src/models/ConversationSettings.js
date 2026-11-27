@@ -7,6 +7,7 @@ const conversationSettingsSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    nicknames: { type: Map, of: String, default: {} },
     background: {
       type: String,
       enum: [

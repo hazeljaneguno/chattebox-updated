@@ -32,7 +32,6 @@ import {
   Flag,
   UserRoundX,
   ChevronRight,
-  Save,
   MoreHorizontal,
   Trash2,
 } from "lucide-react";
@@ -113,6 +112,8 @@ export default function ChatDetails({
   onClose,
   onAction,
   currentUserId,
+  currentUser,
+  onSavePrivateNickname,
   onSaveGroupNickname,
   onFindGroupMembers,
   onAddGroupMember,
@@ -121,6 +122,11 @@ export default function ChatDetails({
 }) {
   const [page, setPage] = useState("home");
   const [nickname, setNickname] = useState("");
+  const [nicknameMember, setNicknameMember] = useState(null);
+  const nicknameDialogRef = useRef(null);
+  useEffect(() => {
+    if (nicknameMember && !nicknameDialogRef.current?.open) nicknameDialogRef.current?.showModal();
+  }, [nicknameMember]);
   const [query, setQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
   const [notificationSettings, setNotificationSettings] = useState(null);
@@ -266,7 +272,7 @@ export default function ChatDetails({
 
   // Escape also returns from subpages.
   useEffect(() => {
-    if (moreMenuOpen) return;
+    if (moreMenuOpen || nicknameMember) return;
 
     const handleEscape = (event) => {
       if (event.key !== "Escape") return;
@@ -283,7 +289,7 @@ export default function ChatDetails({
     return () => {
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [page, moreMenuOpen, onClose]);
+  }, [page, moreMenuOpen, onClose, nicknameMember]);
 
   if (!chat) return null;
 
@@ -330,17 +336,26 @@ export default function ChatDetails({
     send(action);
   };
 
-  const handleNicknameSubmit = (event) => {
+  const nicknameRows = isGroup ? members : [chat, currentUser].filter(Boolean).map((person) => ({
+    ...person,
+    nickname: chat.nicknames?.[String(person.id ?? person._id ?? person.userId)],
+  }));
+  const saveNickname = isGroup ? onSaveGroupNickname : onSavePrivateNickname;
+
+  async function handleNicknameSubmit(event) {
     event.preventDefault();
-
-    const value = nickname.trim();
-
-    if (!value) return;
-
-    send("saveNickname", {
-      nickname: value,
-    });
-  };
+    if (!nicknameMember || !saveNickname || nicknameSaving) return;
+    setNicknameError("");
+    setNicknameSaving(true);
+    try {
+      await saveNickname(chat, nickname.trim(), nicknameMember.id);
+      setNicknameMember(null);
+    } catch (error) {
+      setNicknameError(error.message || "Could not save nickname.");
+    } finally {
+      setNicknameSaving(false);
+    }
+  }
 
   async function openAddMembers() {
     setPage("addMembers");
@@ -717,83 +732,53 @@ export default function ChatDetails({
                 </button>
               ))}
             </div>
-          ) : page === "nicknames" && isGroup ? (
-            <div className="chat-details-section">
-              <h3>Member nicknames</h3>
-              {members.map((member) => {
-                const id = member.id ?? member._id;
-                const isSelf = currentUserId != null && id != null
-                  && String(id) === String(currentUserId);
-
+          ) : page === "nicknames" ? (
+            <div className="chat-details-nickname-list">
+              {nicknameRows.map((member) => {
+                const id = member.id ?? member._id ?? member.userId;
+                const username = member.username || member.name || "Member";
                 return (
-                  <div key={id} style={{ display: "grid", justifyItems: "center", gap: 8, paddingBlock: 12, textAlign: "center" }}>
-                    {memberProfile(member)}
-                    {id != null && (
-                      <button
-                        type="button"
-                        disabled={nicknameSaving || !onSaveGroupNickname}
-                        onClick={async () => {
-                          const value = window.prompt(
-                            isSelf
-                              ? "Your nickname in this group. Leave blank to reset."
-                              : `Nickname for ${member.username || "this member"}. Leave blank to reset.`,
-                            member.nickname || ""
-                          );
-                          if (value === null) return;
-                          if (value.trim().length > 60) {
-                            setNicknameError("Use at most 60 characters.");
-                            return;
-                          }
-                          setNicknameError("");
-                          setNicknameSaving(true);
-                          try {
-                            await onSaveGroupNickname(chat, value.trim(), id);
-                          } catch (error) {
-                            setNicknameError(error.message || "Could not save nickname.");
-                          } finally {
-                            setNicknameSaving(false);
-                          }
-                        }}
-                      >
-                        {nicknameSaving ? "Saving…" : "Set nickname"}
-                      </button>
-                    )}
-                  </div>
+                  <button type="button" className="chat-details-nickname-row" key={id}
+                    disabled={!saveNickname || id == null}
+                    onClick={() => {
+                      setNickname(member.nickname || "");
+                      setNicknameError("");
+                      setNicknameMember({ id, username });
+                    }}>
+                    <span className="nickname-initial" aria-hidden="true">{username[0].toUpperCase()}</span>
+                    <span className="nickname-row-label">
+                      <strong>{member.nickname || "Set nickname"}</strong>
+                      <small>{username}</small>
+                    </span>
+                    <Pencil size={17} aria-hidden="true" />
+                  </button>
                 );
               })}
-              {members.length === 0 && <p>No members to display.</p>}
-              {nicknameError && <p role="alert">{nicknameError}</p>}
+
+              {nicknameMember && (
+                <dialog ref={nicknameDialogRef} className="chat-nickname-dialog"
+                  aria-labelledby="edit-nickname-heading" onCancel={(event) => {
+                    event.preventDefault();
+                    if (!nicknameSaving) setNicknameMember(null);
+                  }}>
+                  <form onSubmit={handleNicknameSubmit}>
+                    <h3 id="edit-nickname-heading">Edit nickname</h3>
+                    <p>Members of this chat will see this nickname here.</p>
+                    <label htmlFor="chat-nickname">Nickname for {nicknameMember.username}</label>
+                    <input id="chat-nickname" value={nickname} maxLength={60}
+                      placeholder={nicknameMember.username} readOnly={nicknameSaving}
+                      autoFocus onChange={(event) => setNickname(event.target.value)} />
+                    <small>Clear the field to reset the nickname.</small>
+                    {nicknameError && <p role="alert">{nicknameError}</p>}
+                    <div className="nickname-dialog-actions">
+                      <button type="button" disabled={nicknameSaving}
+                        onClick={() => setNicknameMember(null)}>Cancel</button>
+                      <button type="submit" disabled={nicknameSaving}>{nicknameSaving ? "Saving…" : "Set"}</button>
+                    </div>
+                  </form>
+                </dialog>
+              )}
             </div>
-          ) : page === "nicknames" ? (
-            /* NICKNAMES */
-            <form
-              className="chat-details-form"
-              onSubmit={handleNicknameSubmit}
-            >
-              <h3>Nicknames</h3>
-
-              <label htmlFor="chat-nickname">
-                Nickname for {name}
-              </label>
-
-              <input
-                id="chat-nickname"
-                value={nickname}
-                onChange={(event) =>
-                  setNickname(event.target.value)
-                }
-                maxLength={60}
-                placeholder="Enter a nickname"
-              />
-
-              <button
-                type="submit"
-                disabled={!nickname.trim()}
-              >
-                <Save size={17} />
-                Save nickname
-              </button>
-            </form>
           ) : page === "search" ? (
             /* SEARCH */
             <form

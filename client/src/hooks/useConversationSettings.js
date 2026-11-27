@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { api } from "../api.js";
 import { sameId } from "../utils/chatHelpers.js";
 
@@ -16,6 +16,23 @@ export default function useConversationSettings({
   const chatId = activeChat?.id ?? activeChat?._id;
   const isGroup = isGroupChat(activeChat);
   const conversationStatus = activeChat?.conversationStatus;
+
+  const applyPrivateNickname = useCallback((update) => {
+    if (!userId || !update?.participantIds?.includes(String(userId))) return;
+    const otherId = update.participantIds.find((id) => id !== String(userId));
+    setChats((previous) => previous.map((chat) => {
+      if (isGroupChat(chat) || !sameId(chat.id ?? chat._id, otherId)) return chat;
+      const messages = chat.messages || [];
+      const notice = update.noticeMessage;
+      return {
+        ...chat,
+        nicknames: { ...chat.nicknames, [update.memberId]: update.nickname },
+        messages: notice && !messages.some((message) => sameId(message.id, notice.id))
+          ? [...messages, notice]
+          : messages,
+      };
+    }));
+  }, [userId, setChats]);
 
   // Load the saved background when the chat opens or becomes accepted.
   useEffect(() => {
@@ -38,7 +55,7 @@ export default function useConversationSettings({
           previous.map((chat) =>
             isGroupChat(chat) === isGroup &&
             sameId(chat.id ?? chat._id, chatId)
-              ? { ...chat, background }
+              ? { ...chat, background, ...(!isGroup && { nicknames: settings?.nicknames ?? {} }) }
               : chat
           )
         );
@@ -112,12 +129,16 @@ export default function useConversationSettings({
       );
     }
 
+    socket.on("conversation:nickname:updated", applyPrivateNickname);
     socket.on("conversation:background:updated", handlePrivateBackgroundUpdated);
     socket.on("group:background:updated", handleGroupBackgroundUpdated);
 
     return () => {
+      socket.off("conversation:nickname:updated", applyPrivateNickname);
       socket.off("conversation:background:updated", handlePrivateBackgroundUpdated);
       socket.off("group:background:updated", handleGroupBackgroundUpdated);
     };
-  }, [socket, userId, setChats]);
+  }, [socket, userId, setChats, applyPrivateNickname]);
+
+  return applyPrivateNickname;
 }

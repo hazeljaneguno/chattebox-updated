@@ -643,3 +643,74 @@
 .dark .chat-details-panel .chat-details-top-button:hover {
   background: #4e4f50;
 }
+
+.chat-details-nickname-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px 0;
+}
+.chat-details-nickname-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 12px;
+  color: inherit;
+  background: rgba(143, 118, 208, .08);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  text-align: left;
+}
+.chat-details-nickname-row:hover { border-color: #9d8acc; }
+.nickname-initial {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e9dffb;
+  color: #604495;
+  font-weight: 700;
+}
+.nickname-row-label { display: grid; gap: 3px; overflow-wrap: anywhere; }
+.nickname-row-label small { opacity: .75; }
+.chat-nickname-dialog {
+  box-sizing: border-box;
+  width: min(390px, calc(100% - 32px));
+  margin: auto;
+  padding: 22px;
+  border: 1px solid #a798c3;
+  border-radius: 18px;
+  background: #faf7ff;
+  color: #2b2240;
+}
+[data-theme="dark"] .chat-nickname-dialog {
+  background: #292235;
+  color: #f8f3ff;
+}
+.chat-nickname-dialog::backdrop { background: rgba(14, 8, 25, .6); }
+.chat-nickname-dialog form { display: grid; gap: 10px; }
+.chat-nickname-dialog h3, .chat-nickname-dialog p { margin: 0; }
+.chat-nickname-dialog label { margin-top: 6px; font-weight: 600; }
+.chat-nickname-dialog input {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #a798c3;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+}
+.nickname-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.nickname-dialog-actions button {
+  min-height: 40px;
+  padding: 6px 16px;
+  border: 0;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+}
+.nickname-dialog-actions button[type="submit"] { color: #fff; background: #6848ac; }

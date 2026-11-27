@@ -305,6 +305,7 @@ router.get("/:userId/settings", requireAuth, async (req, res, next) => {
     return res.json({
       conversationKey: key,
       background: settings?.background || "default",
+      nicknames: settings?.nicknames ?? {},
     });
   } catch (error) {
     next(error);
@@ -540,6 +541,68 @@ router.patch("/:userId/settings", requireAuth, async (req, res, next) => {
   }
 });
 
+
+router.patch("/:userId/nickname", requireAuth, async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+    const actorId = String(req.user._id);
+    const memberId = req.body?.memberId;
+    const nickname = typeof req.body?.nickname === "string" ? req.body.nickname.trim() : null;
+    if (!mongoose.isObjectIdOrHexString(userId) || userId.toLowerCase() === actorId ||
+        ![actorId, userId.toLowerCase()].includes(memberId) || nickname === null || nickname.length > 60) {
+      return res.status(400).json({ message: "Choose a participant and a nickname of up to 60 characters." });
+    }
+
+    const conversation = await requireAcceptedConversation(userId, actorId);
+    if (!conversation) {
+      return res.status(403).json({ message: "You can only set nicknames in accepted conversations." });
+    }
+
+    const participantIds = conversation.participants.map(String);
+    if (!participantIds.includes(memberId)) {
+      return res.status(404).json({ message: "Conversation member unavailable." });
+    }
+    const key = conversationKey(actorId, userId);
+    const field = `nicknames.${memberId}`;
+    const previous = await ConversationSettings.findOneAndUpdate(
+      { conversationKey: key },
+      {
+        $setOnInsert: { conversationKey: key },
+        ...(nickname ? { $set: { [field]: nickname } } : { $unset: { [field]: 1 } }),
+      },
+      { upsert: true, new: false, runValidators: true, setDefaultsOnInsert: false }
+    );
+
+    let noticeMessage = null;
+    if ((previous?.nicknames?.get(memberId) ?? "") !== nickname) {
+      const senderName = req.user.username || "A participant";
+      const target = memberId === actorId ? null : await User.findById(memberId).select("username");
+      const owner = memberId === actorId ? "their" : `${target?.username || "the other participant"}’s`;
+      const text = nickname
+        ? `${senderName} changed ${owner} nickname to ${nickname}.`
+        : `${senderName} reset ${owner} nickname.`;
+      const notice = await Message.create({
+        conversationKey: key, sender: actorId, recipient: userId,
+        type: "conversation_notice", text,
+      });
+      noticeMessage = {
+        id: String(notice._id), senderId: actorId, senderName, recipientId: userId,
+        type: notice.type, text: notice.text, createdAt: notice.createdAt,
+      };
+    }
+
+    const update = { participantIds, memberId, nickname, noticeMessage };
+    if (noticeMessage) {
+      const io = req.app.get("io");
+      for (const participantId of participantIds) {
+        io?.to(`user:${participantId}`).emit("conversation:nickname:updated", update);
+      }
+    }
+    return res.json(update);
+  } catch (error) {
+    next(error);
+  }
+});
 
 // Update personal appearance theme
 router.patch("/theme", requireAuth, async (req, res, next) => {

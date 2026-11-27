@@ -229,6 +229,12 @@ export const api = {
         body: JSON.stringify({ background }),
       }
     ),
+  updatePrivateNickname: (userId, nickname, memberId) =>
+    request(`/api/conversations/${encodeURIComponent(userId)}/nickname`, {
+      method: "PATCH",
+      body: JSON.stringify({ nickname, memberId }),
+    }),
+
   updateGroupNickname: (groupId, nickname, memberId) =>
     request(`/api/groups/${encodeURIComponent(groupId)}/nickname`, {
       method: "PATCH",

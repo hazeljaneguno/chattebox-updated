@@ -118,7 +118,7 @@ export default function ChatHeader({
         <h2>
           {isGroup
             ? activeChat.name
-            : activeChat.username || activeChat.name}
+            : activeChat.nicknames?.[String(activeChat.id ?? activeChat._id)] || activeChat.username || activeChat.name}
         </h2>
 
         <p>

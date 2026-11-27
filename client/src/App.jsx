@@ -330,7 +330,7 @@ const showGroupCallChat = Boolean(
   // 12. CUSTOM HOOKS
   // =========================
 
-  useConversationSettings({
+  const applyPrivateNickname = useConversationSettings({
     user,
     activeChat,
     setChats,
@@ -3021,6 +3021,11 @@ if (!user) {
     onAddGroupMember={async (chat, memberId) => {
       const update = await api.addGroupMembers(chat.id ?? chat._id, [memberId]);
       applyGroupMembers(update);
+    }}
+    currentUser={user}
+    onSavePrivateNickname={async (chat, nickname, memberId) => {
+      const update = await api.updatePrivateNickname(chat.id ?? chat._id, nickname, memberId);
+      applyPrivateNickname(update);
     }}
     onSaveGroupNickname={async (chat, nickname, memberId) => {
       const update = await api.updateGroupNickname(chat.id ?? chat._id, nickname, memberId);
