@@ -640,3 +640,34 @@
 .message-seen-avatars .message-seen-initial img[hidden] {
   display: none;
 }
+
+.message-bubble-surface > .message-bubble.bubble-photo {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.bubble-photo > .message-text {
+  margin-top: 6px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #27253a);
+}
+
+.bubble-photo > .message-attachment > .message-image-button {
+  border-radius: 18px;
+  -webkit-touch-callout: none;
+}
+
+.bubble-photo .message-image-button > .message-image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(68dvh, 480px);
+  border-radius: inherit;
+  object-fit: contain;
+  transform: none;
+  user-select: none;
+}

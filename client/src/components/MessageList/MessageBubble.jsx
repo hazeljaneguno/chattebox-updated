@@ -109,6 +109,7 @@ export default function MessageBubble({
   const media = getAttachmentMediaType(attachment);
   const isImage = media === "image";
   const [failedMediaUrl, setFailedMediaUrl] = useState("");
+  const photoVisible = !deleted && !editing && isImage && attachmentUrl && failedMediaUrl !== attachmentUrl;
   const reactionDialogRef = useRef(null);
   const [selectedReaction, setSelectedReaction] = useState(null);
 
@@ -236,7 +237,7 @@ export default function MessageBubble({
   <div
     className={`message-bubble ${
       emojiOnly ? "bubble-emoji-only" : mine ? "bubble-mine" : "bubble-theirs"
-    } ${editing ? "bubble-editing" : ""} ${
+    } ${photoVisible ? "bubble-photo" : ""} ${editing ? "bubble-editing" : ""} ${
       deleted ? "bubble-deleted" : ""
     } ${!deleted && message.isPinned ? "bubble-pinned" : ""}`}
   >
@@ -345,6 +346,7 @@ export default function MessageBubble({
                 aria-label="View image larger"
               >
                 <img
+                  draggable={false}
                   src={attachmentUrl}
                   alt={
                     attachment.originalName ||
@@ -395,20 +397,6 @@ export default function MessageBubble({
               </a>
             )}
 
-            {/* Remove image */}
-            {mine && isImage && removeImage && (
-              <button
-                type="button"
-                className="remove-message-image"
-                onClick={() =>
-                  removeImage(getMessageId(message))
-                }
-                aria-label="Remove image attachment"
-                title="Remove image"
-              >
-                <X size={15} />
-              </button>
-            )}
           </div>
         )}
 
@@ -552,11 +540,13 @@ export default function MessageBubble({
   <MessageActions
     mine={mine}
     isImage={isImage}
+    canRemoveImage={Boolean(mine && isImage && removeImage)}
     text={message.text || ""}
     pinned={Boolean(message.isPinned)}
-    onAction={(action) =>
-      onMessageAction?.(message, action)
-    }
+    onAction={(action) => {
+      if (action === "remove-image") return removeImage?.(getMessageId(message));
+      return onMessageAction?.(message, action);
+    }}
     onReact={(emoji) =>
       onReact?.(message, emoji)
     }

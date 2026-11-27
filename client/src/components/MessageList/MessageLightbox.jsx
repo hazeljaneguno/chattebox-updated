@@ -1,11 +1,13 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export default function MessageLightbox({
   selectedImage,
   onClose,
+  onPrevious,
+  onNext,
 }) {
   useEffect(() => {
     if (!selectedImage) return;
@@ -13,6 +15,12 @@ export default function MessageLightbox({
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
         onClose?.();
+      } else if (event.key === "ArrowLeft" && onPrevious) {
+        event.preventDefault();
+        onPrevious();
+      } else if (event.key === "ArrowRight" && onNext) {
+        event.preventDefault();
+        onNext();
       }
     };
 
@@ -24,7 +32,7 @@ export default function MessageLightbox({
         handleKeyDown
       );
     };
-  }, [selectedImage, onClose]);
+  }, [selectedImage, onClose, onPrevious, onNext]);
 
   if (!selectedImage) return null;
 
@@ -43,21 +51,41 @@ export default function MessageLightbox({
       role="dialog"
       aria-modal="true"
       aria-label="Message image preview"
-      onClick={() => onClose?.()}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
     >
-<button
-  type="button"
-  className="message-details-close"
-  onClick={onClose}
-  aria-label="Close details"
->
-  <X size={20} />
-</button>
-
-      <div
-        className="message-lightbox-content"
-        onClick={(event) => event.stopPropagation()}
+      <button
+        type="button"
+        className="message-lightbox-close"
+        onClick={onClose}
+        aria-label="Close photo preview"
       >
+        <X size={22} aria-hidden="true" />
+      </button>
+
+      {onPrevious && (
+        <button
+          type="button"
+          className="message-lightbox-nav message-lightbox-previous"
+          aria-label="Previous photo"
+          onClick={onPrevious}
+        >
+          <ChevronLeft size={24} aria-hidden="true" />
+        </button>
+      )}
+      {onNext && (
+        <button
+          type="button"
+          className="message-lightbox-nav message-lightbox-next"
+          aria-label="Next photo"
+          onClick={onNext}
+        >
+          <ChevronRight size={24} aria-hidden="true" />
+        </button>
+      )}
+
+      <div className="message-lightbox-content">
         <img
           src={src}
           alt={typeof selectedImage === "string" ? "Message image" : selectedImage.alt || "Message image"}

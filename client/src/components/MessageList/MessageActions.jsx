@@ -28,7 +28,7 @@ const save = (key, value) => {
 
 export default function MessageActions({
   mine, menuOpen, onReply, onEdit, onToggleMenu, showQuickReply = true,
-  onDeleteForYou, onDeleteForEveryone, isImage = false,
+  onDeleteForYou, onDeleteForEveryone, isImage = false, canRemoveImage = false,
   text = "", pinned = false, onAction, onReact,
 }) {
   const [more, setMore] = useState(false);
@@ -46,9 +46,16 @@ export default function MessageActions({
   const anchorRef = useRef(null);
   const floatingMenuRef = useRef(null);
   const emojiPickerRef = useRef(null);
+  const photoMoreRef = useRef(null);
+  const photoMoreOpen = menuOpen && isImage && more;
 
   useLayoutEffect(() => {
-    if (!menuOpen || picker) return;
+    const dialog = photoMoreRef.current;
+    if (photoMoreOpen && dialog && !dialog.open) dialog.showModal();
+  }, [photoMoreOpen]);
+
+  useLayoutEffect(() => {
+    if (!menuOpen || picker || photoMoreOpen) return;
 
     const menu = floatingMenuRef.current;
     const anchor = anchorRef.current?.closest(".message-bubble-surface")
@@ -98,7 +105,7 @@ export default function MessageActions({
       viewport?.removeEventListener("scroll", positionMenu);
       observer?.disconnect();
     };
-  }, [menuOpen, picker, mine]);
+  }, [menuOpen, picker, mine, photoMoreOpen]);
 
   useEffect(() => {
     if (!menuOpen) {
@@ -162,7 +169,7 @@ export default function MessageActions({
       else if (type === "edit") onEdit?.();
       else if (type === "delete") onDeleteForYou?.();
       else if (type === "delete-everyone") onDeleteForEveryone?.();
-      else onAction?.(type);
+      else await onAction?.(type);
     } catch (error) {
       console.error("Message action failed:", error);
     } finally { close(); }
@@ -200,17 +207,27 @@ export default function MessageActions({
     ["forward", Forward, "Forward"],
     ["pin", Pin, pinned ? "Unpin" : "Pin"],
     ["reminder", AlarmClock, "Set a reminder"],
-    ...(isImage
-      ? [["ai-edit", Sparkles, "Edit with AI"], ["save-image", Download, "Save image"]]
-      : [["ai-image", Sparkles, "Make AI Image"], ["bump", BellRing, "Bump"]]),
+    ["ai-image", Sparkles, "Make AI Image"],
+    ["bump", BellRing, "Bump"],
     ...(mine ? [["edit", Pencil, "Edit"]] : [["report", Flag, "Report"]]),
     ...(mine ? [["delete-everyone", Trash2, "Delete for everyone"]] : []),
   ] : [
     ["reply", Reply, "Reply"],
     ...(isImage
-      ? [["forward", Forward, "Forward"], ["reminder", AlarmClock, "Set a reminder"]]
-      : [["copy", Copy, "Copy"]]),
-    ["delete", Trash2, "Delete"],
+      ? [["save-image", Download, "Save image"]]
+      : [["copy", Copy, "Copy"], ["delete", Trash2, "Delete"]]),
+  ];
+
+  const photoMoreActions = [
+    ["delete", "Delete"],
+    ["reminder", "Set a reminder"],
+    ["pin", pinned ? "Unpin" : "Pin"],
+    ["forward", "Forward"],
+    ...(canRemoveImage ? [["remove-image", "Remove image"]] : []),
+    ["ai-edit", "Edit with AI"],
+    ...(mine
+      ? [["edit", "Edit"], ["delete-everyone", "Delete for everyone"]]
+      : [["report", "Report"]]),
   ];
 
   const emojiPicker = (
@@ -295,7 +312,7 @@ export default function MessageActions({
         </button>
       )}
 
-      {menuOpen && !picker && typeof document !== "undefined" && createPortal(
+      {menuOpen && !picker && !photoMoreOpen && typeof document !== "undefined" && createPortal(
         <div
           ref={floatingMenuRef}
           className={actionsClassName}
@@ -338,6 +355,31 @@ export default function MessageActions({
             </div>
           </div>
         </div>,
+        document.body
+      )}
+      {photoMoreOpen && createPortal(
+        <dialog
+          ref={photoMoreRef}
+          className="messenger-photo-more"
+          aria-label="More photo actions"
+          onCancel={(event) => {
+            event.preventDefault();
+            close();
+          }}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (event.target === event.currentTarget) close();
+          }}
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+        >
+          <div className="messenger-photo-more-content">
+            <h2>More</h2>
+            {photoMoreActions.map(([id, label]) => (
+              <button type="button" key={id} onClick={() => action(id)}>{label}</button>
+            ))}
+          </div>
+        </dialog>,
         document.body
       )}
       {menuOpen && picker && typeof document !== "undefined" && createPortal(emojiPicker, document.body)}

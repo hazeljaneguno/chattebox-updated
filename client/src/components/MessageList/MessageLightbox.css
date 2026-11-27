@@ -20,8 +20,8 @@
 /* Close button */
 .message-lightbox-close {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: max(18px, env(safe-area-inset-top));
+  right: max(18px, env(safe-area-inset-right));
   z-index: 2;
 
   display: grid;
@@ -45,7 +45,7 @@
 
 .message-lightbox-close:hover {
   background: rgb(255 255 255 / 25%);
-  transform: rotate(90deg);
+  transform: scale(1.06);
 }
 
 .message-lightbox-close:focus-visible {
@@ -119,11 +119,8 @@
   }
 
   .message-lightbox-close {
-    top: 12px;
-    right: 12px;
-
-    width: 42px;
-    height: 42px;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
   }
 
   .message-lightbox-content img {
@@ -143,4 +140,38 @@
   .message-lightbox-close {
     transition: none;
   }
+}
+
+.message-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgb(255 255 255 / 60%);
+  border-radius: 50%;
+  background: rgb(15 15 25 / 82%);
+  color: #fff;
+  cursor: pointer;
+}
+
+.message-lightbox-previous {
+  left: max(12px, env(safe-area-inset-left));
+}
+
+.message-lightbox-next {
+  right: max(12px, env(safe-area-inset-right));
+}
+
+.message-lightbox-nav:hover {
+  background: #363348;
+}
+
+.message-lightbox-nav:focus-visible {
+  outline: 2px solid #a99bff;
+  outline-offset: 3px;
 }

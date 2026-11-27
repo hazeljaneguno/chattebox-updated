@@ -118,3 +118,52 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .messenger-actions .messenger-quick-reply { transition: none; } }
+
+.messenger-photo-more {
+  position: fixed;
+  inset: 0;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 36px));
+  max-height: min(76dvh, 560px);
+  margin: auto;
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 22px;
+  background: var(--surface, #fff);
+  color: var(--text, #27253a);
+  box-shadow: 0 18px 46px rgb(0 0 0 / 24%);
+}
+
+.messenger-photo-more::backdrop {
+  background: rgb(0 0 0 / 56%);
+}
+
+.messenger-photo-more-content {
+  padding: 18px 12px 12px;
+}
+
+.messenger-photo-more h2 {
+  margin: 0 8px 10px;
+  font-size: 20px;
+  font-weight: 650;
+}
+
+.messenger-photo-more button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messenger-photo-more button:hover,
+.messenger-photo-more button:focus-visible {
+  background: var(--hover, #f1edf8);
+}

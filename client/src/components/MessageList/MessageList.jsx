@@ -14,6 +14,7 @@ import {
   sameId,
   getMessageId,
   getAttachmentUrl,
+  getAttachmentMediaType,
 } from "../../utils/messageHelpers";
 
 import "./MessageStyles.css";
@@ -307,8 +308,9 @@ export default function MessageList({
   const joiningRef = useRef(false);
   const holdTimerRef = useRef(null);
   const holdStartRef = useRef(null);
+  const heldPhotoRef = useRef(null);
 
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [openPhoto, setOpenPhoto] = useState(null);
   const [highlightedMessageId, setHighlightedMessageId] =
     useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -526,14 +528,30 @@ function getSenderDisplayName(message) {
     if (messageJump) jumpToMessage(messageJump.id);
   }, [messageJump]);
 
+  useEffect(() => {
+    function stopPhotoHoldClick(event) {
+      if (event.detail > 0 && heldPhotoRef.current &&
+        event.target.closest?.(".message-image-button") === heldPhotoRef.current) {
+        heldPhotoRef.current = null;
+        event.stopPropagation();
+      }
+    }
+
+    window.addEventListener("click", stopPhotoHoldClick, true);
+    return () => window.removeEventListener("click", stopPhotoHoldClick, true);
+  }, []);
+
   function handleTouchStart(event, message) {
-    if (event.target.closest("button, input, textarea, a, video, audio, [role='dialog']")) return;
+    const photo = event.target.closest(".message-image-button");
+    if (!photo && event.target.closest("button, input, textarea, a, video, audio, [role='dialog']")) return;
+    heldPhotoRef.current = null;
     const touch = event.touches?.[0];
     if (!touch) return;
 
     holdStartRef.current = { x: touch.clientX, y: touch.clientY };
     clearTimeout(holdTimerRef.current);
     if (!message.isDeleted && !isCallEvent(message)) holdTimerRef.current = setTimeout(() => {
+      heldPhotoRef.current = photo;
       setOpenMenuId(String(getMessageId(message)));
       holdTimerRef.current = null;
     }, 500);
@@ -547,6 +565,10 @@ function getSenderDisplayName(message) {
   function handleTouchEnd(event, message) {
     clearTimeout(holdTimerRef.current);
     holdStartRef.current = null;
+    if (heldPhotoRef.current && event.target.closest(".message-image-button") === heldPhotoRef.current) {
+      swipeStartRef.current = null;
+      return;
+    }
     const start = swipeStartRef.current;
     swipeStartRef.current = null;
 
@@ -589,19 +611,29 @@ function getSenderDisplayName(message) {
     clearTimeout(holdTimerRef.current);
   }
 
-  function openImage(attachment, message) {
-    const src = getAttachmentUrl(attachment);
-    if (!src) return;
+  const gallery = openPhoto?.chatId === chatId && openPhoto
+    ? safeMessages.flatMap((message) => {
+        if (message?.isDeleted || getAttachmentMediaType(message?.attachment) !== "image") return [];
+        const src = getAttachmentUrl(message.attachment);
+        return src ? [{
+          message,
+          src,
+          alt: message.attachment.originalName || "Message image",
+          senderName: message.senderName || "Image",
+        }] : [];
+      })
+    : [];
+  const photoIndex = gallery.findIndex(({ message }) =>
+    message === openPhoto.message || sameId(getMessageId(message), getMessageId(openPhoto.message))
+  );
 
-    setSelectedImage({
-      src,
-      alt:
-        attachment?.originalName ||
-        "Message image",
-      senderName:
-        message?.senderName ||
-        "Image",
-    });
+  function openImage(_attachment, message) {
+    setOpenPhoto({ chatId, message });
+  }
+
+  function movePhoto(offset) {
+    const nextPhoto = gallery[photoIndex + offset];
+    if (photoIndex >= 0 && nextPhoto) openImage(nextPhoto.message.attachment, nextPhoto.message);
   }
 
   async function handleDelete(message, type) {
@@ -967,8 +999,10 @@ function getSenderDisplayName(message) {
       </div>
 
 <MessageLightbox
-  selectedImage={selectedImage}
-  onClose={() => setSelectedImage(null)}
+  selectedImage={gallery[photoIndex]}
+  onPrevious={photoIndex > 0 ? () => movePhoto(-1) : undefined}
+  onNext={photoIndex >= 0 && photoIndex < gallery.length - 1 ? () => movePhoto(1) : undefined}
+  onClose={() => setOpenPhoto(null)}
 />
     </>
   );
