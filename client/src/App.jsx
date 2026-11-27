@@ -3041,8 +3041,8 @@ if (!user) {
       const update = await api.addGroupMembers(chat.id ?? chat._id, [memberId]);
       applyGroupMembers(update);
     }}
-    onSaveGroupNickname={async (chat, nickname) => {
-      const update = await api.updateGroupNickname(chat.id ?? chat._id, nickname);
+    onSaveGroupNickname={async (chat, nickname, memberId) => {
+      const update = await api.updateGroupNickname(chat.id ?? chat._id, nickname, memberId);
       applyGroupNickname(update);
       if (!socket?.connected && update.notice) showNotice(update.notice);
     }}

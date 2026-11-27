@@ -728,13 +728,15 @@ export default function ChatDetails({
                 return (
                   <div key={id} style={{ display: "grid", justifyItems: "center", gap: 8, paddingBlock: 12, textAlign: "center" }}>
                     {memberProfile(member)}
-                    {isSelf && (
+                    {id != null && (
                       <button
                         type="button"
                         disabled={nicknameSaving || !onSaveGroupNickname}
                         onClick={async () => {
                           const value = window.prompt(
-                            "Your nickname in this group. Leave blank to reset.",
+                            isSelf
+                              ? "Your nickname in this group. Leave blank to reset."
+                              : `Nickname for ${member.username || "this member"}. Leave blank to reset.`,
                             member.nickname || ""
                           );
                           if (value === null) return;
@@ -745,7 +747,7 @@ export default function ChatDetails({
                           setNicknameError("");
                           setNicknameSaving(true);
                           try {
-                            await onSaveGroupNickname(chat, value.trim());
+                            await onSaveGroupNickname(chat, value.trim(), id);
                           } catch (error) {
                             setNicknameError(error.message || "Could not save nickname.");
                           } finally {

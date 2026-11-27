@@ -595,8 +595,9 @@ router.patch("/:groupId/nickname", requireAuth, async (req, res, next) => {
   try {
     const { groupId } = req.params;
     const value = req.body?.nickname;
+    const memberId = req.body?.memberId ?? req.user._id;
 
-    if (!mongoose.isValidObjectId(groupId) || typeof value !== "string") {
+    if (!mongoose.isValidObjectId(groupId) || !mongoose.isObjectIdOrHexString(memberId) || typeof value !== "string") {
       return res.status(400).json({ message: "Invalid group or nickname." });
     }
 
@@ -608,11 +609,16 @@ router.patch("/:groupId/nickname", requireAuth, async (req, res, next) => {
       });
     }
 
-    const userId = String(req.user._id);
+    const userId = String(memberId).toLowerCase();
+    const isSelf = userId === String(req.user._id);
+    const target = isSelf ? req.user : await User.findById(userId).select("username");
+    if (!target) {
+      return res.status(404).json({ message: "Group member unavailable." });
+    }
     const field = `nicknames.${userId}`;
 
     const groupBeforeUpdate = await Group.findOneAndUpdate(
-      { _id: groupId, members: req.user._id },
+      { _id: groupId, members: { $all: [req.user._id, userId] } },
       nickname
         ? { $set: { [field]: nickname } }
         : { $unset: { [field]: 1 } },
@@ -625,12 +631,13 @@ router.patch("/:groupId/nickname", requireAuth, async (req, res, next) => {
 
     const previousNickname = groupBeforeUpdate.nicknames?.get(userId) ?? "";
     const username = req.user.username || "A group member";
+    const nicknameOwner = isSelf ? "their" : `${target.username || "the member"}’s`;
     let notice = null;
 
     if (previousNickname !== nickname) {
       notice = nickname
-        ? `${username} changed their nickname to ${nickname}.`
-        : `${username} reset their nickname.`;
+        ? `${username} changed ${nicknameOwner} nickname to ${nickname}.`
+        : `${username} reset ${nicknameOwner} nickname.`;
     }
 
     const update = {

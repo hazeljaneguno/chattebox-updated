@@ -229,10 +229,10 @@ export const api = {
         body: JSON.stringify({ background }),
       }
     ),
-  updateGroupNickname: (groupId, nickname) =>
+  updateGroupNickname: (groupId, nickname, memberId) =>
     request(`/api/groups/${encodeURIComponent(groupId)}/nickname`, {
       method: "PATCH",
-      body: JSON.stringify({ nickname }),
+      body: JSON.stringify({ nickname, memberId }),
     }),
   /* =======================================
      AUTHENTICATION
