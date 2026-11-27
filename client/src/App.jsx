@@ -2927,18 +2927,16 @@ if (!user) {
 const currentUserId =
   user?.id ?? user?._id ?? user?.userId;
 
-const typingUsers = (activeChat?.members || [])
-  .filter((member) => {
-    const memberId = member.id ?? member._id ?? member.userId;
+const typingCandidates = activeChat?.isGroup
+  ? activeChat.members ?? []
+  : activeChat ? [activeChat] : [];
 
-    return (
-      typingUserIds.some((id) => sameId(id, memberId)) &&
-      !sameId(memberId, currentUserId)
-    );
-  });
+const typingUsers = typingCandidates.filter((person) => {
+  const personId = person.id ?? person._id ?? person.userId;
+  return typingUserIds.some((id) => sameId(id, personId));
+});
 
 const displayedTypingUsers = typingUsers.slice(0, 3);
-
 const getTypingName = (member) =>
   member.nickname ||
   member.username ||
@@ -2951,7 +2949,7 @@ const getTypingAvatar = (member) =>
   member.profileImage ||
   member.photo ||
   "/default-avatar.png";
-
+ 
 const typingMessage =
   typingUsers.length === 1
     ? `${getTypingName(typingUsers[0])} is typing...`
