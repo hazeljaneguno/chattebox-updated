@@ -20,7 +20,7 @@ import {
 
 import MentionText from "./MentionText";
 import { API_URL } from "../api";
-import "./MessageList.css";
+import "./MessageList/MessageStyles.css";
 
 function sameId(a, b) {
   if (a == null || b == null) return false;

@@ -141,6 +141,35 @@ export default function App() {
   const [user, setUser] = useState(null);
 
   const authenticatedUserId = user?.id ?? user?._id ?? user?.userId ?? null;
+  const typingPreferenceKey = authenticatedUserId == null
+    ? null
+    : `chatterbox:show-typing:${authenticatedUserId}`;
+  const [typingPreference, setTypingPreference] = useState(null);
+
+  const savedTypingPreference = useMemo(() => {
+    if (!typingPreferenceKey) return true;
+
+    try {
+      return window.localStorage.getItem(typingPreferenceKey) !== "off";
+    } catch {
+      return true;
+    }
+  }, [typingPreferenceKey]);
+
+  const showTypingIndicator = typingPreference?.key === typingPreferenceKey
+    ? typingPreference.enabled
+    : savedTypingPreference;
+
+  function handleTypingPreferenceChange(enabled) {
+    if (!typingPreferenceKey) return;
+    setTypingPreference({ key: typingPreferenceKey, enabled });
+
+    try {
+      window.localStorage.setItem(typingPreferenceKey, enabled ? "on" : "off");
+    } catch {
+      // The setting still applies for this session if storage is unavailable.
+    }
+  }
 
   const [checkingSession, setCheckingSession] = useState(true);
 
@@ -366,7 +395,7 @@ const {
 } = useGroupCall();
 
 const { handleTypingChange, typingUserIds } =
-  useTypingIndicator(socket, activeChat);
+  useTypingIndicator(socket, activeChat, showTypingIndicator);
 
   // =========================
   // 13. NOTIFICATION HANDLER
@@ -3283,6 +3312,8 @@ onAction={async (action, payload) => {
         showActiveStatus={showActiveStatus}
         onActiveStatusChange={handleActiveStatusChange}
         savingActiveStatus={savingActiveStatus}
+        showTypingIndicator={showTypingIndicator}
+        onTypingIndicatorChange={handleTypingPreferenceChange}
       />
 
       {/* MESSAGE REQUESTS MODAL */}

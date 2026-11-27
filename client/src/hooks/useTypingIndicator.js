@@ -4,7 +4,7 @@ const IDLE_MS = 2000;
 const REFRESH_MS = 1500;
 const EXPIRE_MS = 5000;
 
-export default function useTypingIndicator(socket, activeChat) {
+export default function useTypingIndicator(socket, activeChat, showTypingIndicator = true) {
   const chatId = String(activeChat?.id ?? "");
   const isGroup = Boolean(activeChat?.isGroup);
   const chatKey = `${isGroup}:${chatId}`;
@@ -24,7 +24,7 @@ export default function useTypingIndicator(socket, activeChat) {
   }, [socket, chatId, isGroup]);
 
   const handleTypingChange = useCallback((isTyping) => {
-    if (!isTyping) {
+    if (!isTyping || !showTypingIndicator) {
       stopTyping();
       return;
     }
@@ -39,7 +39,11 @@ export default function useTypingIndicator(socket, activeChat) {
 
     clearTimeout(idleTimer.current);
     idleTimer.current = setTimeout(stopTyping, IDLE_MS);
-  }, [socket, chatId, isGroup, stopTyping]);
+  }, [socket, chatId, isGroup, showTypingIndicator, stopTyping]);
+
+  useEffect(() => {
+    if (!showTypingIndicator) stopTyping();
+  }, [showTypingIndicator, stopTyping]);
 
   useEffect(() => {
     if (!socket || !chatId) return;

@@ -29,14 +29,6 @@
   --primary-soft: #f0edff;
 
   /* Message composer - Light Mode */
-  --composer-bg: #eeeaff;
-  --composer-input-bg: #ffffff;
-  --composer-border: #ded6ff;
-  --composer-text: #30284b;
-  --composer-icon: #7868e6;
-  --composer-button: #7868e6;
-  --composer-button-hover: #6352d3;
-  --composer-hint: #88809f;
   --sidebar-bg: #ffffff;
   --sidebar-card: #faf9fd;
   --sidebar-search: #fbfaff;
@@ -92,14 +84,6 @@
   --chat-header-border: #383449;
 
   /* Composer variables remain separate */
-  --composer-bg: #302943;
-  --composer-input-bg: #211f31;
-  --composer-border: #494064;
-  --composer-text: #f4f0ff;
-  --composer-icon: #b9adff;
-  --composer-button: #917df5;
-  --composer-button-hover: #a797ff;
-  --composer-hint: #b0a9c8;
 
   /* Brand colors */
   --purple: #a397ff;
