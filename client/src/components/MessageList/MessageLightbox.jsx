@@ -12,6 +12,7 @@ export default function MessageLightbox({
   onNext,
 }) {
   const galleryRef = useRef(null);
+  const swipeStart = useRef(null);
   const galleryOpen = Boolean(stackPhotos?.length);
 
   useLayoutEffect(() => {
@@ -43,6 +44,30 @@ export default function MessageLightbox({
       );
     };
   }, [selectedImage, onClose, onPrevious, onNext]);
+
+  function startSwipe(event) {
+    if (event.pointerType !== "touch") return;
+    if (!event.isPrimary || (!onPrevious && !onNext)) {
+      swipeStart.current = null;
+      return;
+    }
+
+    swipeStart.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function finishSwipe(event) {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start || start.id !== event.pointerId) return;
+
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    if (Math.abs(dx) < 45 || Math.abs(dx) <= Math.abs(dy) * 1.35) return;
+
+    if (dx < 0) onNext?.();
+    else onPrevious?.();
+  }
 
   if (galleryOpen) {
     return createPortal(
@@ -125,7 +150,12 @@ export default function MessageLightbox({
         </button>
       )}
 
-      <div className="message-lightbox-content">
+      <div
+        className="message-lightbox-content"
+        onPointerDown={startSwipe}
+        onPointerUp={finishSwipe}
+        onPointerCancel={() => { swipeStart.current = null; }}
+      >
         <img
           src={src}
           alt={typeof selectedImage === "string" ? "Message image" : selectedImage.alt || "Message image"}

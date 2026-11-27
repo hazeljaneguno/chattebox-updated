@@ -55,6 +55,7 @@
 
 /* Image and sender information */
 .message-lightbox-content {
+  touch-action: pan-y pinch-zoom;
   display: flex;
   flex-direction: column;
   align-items: center;
