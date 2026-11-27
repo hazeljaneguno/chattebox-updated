@@ -341,7 +341,7 @@ export default function MessageBubble({
                 type="button"
                 className={`message-image-button ${photoStack ? "message-photo-stack" : ""}`}
                 onClick={() =>
-                  onOpenImage(attachment, message)
+                  onOpenImage(message, photoStack)
                 }
                 aria-label={photoStack ? `Open photo stack of ${photoStack.length} photos` : "View image larger"}
               >

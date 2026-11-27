@@ -38,7 +38,7 @@ export default function useMessageActions({
   }, [setReplyTo, inputRef]);
 
   // Send private and group messages.
-  const sendMessage = useCallback(async (event, selectedFile = null, { focusInput = true, textOverride } = {}) => {
+  const sendMessage = useCallback(async (event, selectedFile = null, { focusInput = true, textOverride, includeReply = true } = {}) => {
     event.preventDefault();
 
     const text = (textOverride ?? draft).trim();
@@ -92,7 +92,7 @@ export default function useMessageActions({
         }
       }
 
-      const replyMessageId = replyTo
+      const replyMessageId = includeReply && replyTo
         ? replyTo.id ?? replyTo._id ?? null
         : null;
 

@@ -8,7 +8,7 @@ const recentPhotos = registerPlugin("RecentPhotos");
 let requestedGalleryAccess = false;
 
 export default function ComposerPhotoGrid({
-  chosenPhoto, onChoose, onClear, onError, disabled, onBusyChange,
+  chosenPhotos, onChoose, onClear, onError, disabled, onBusyChange,
 }) {
   const [gallery, setGallery] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -107,11 +107,11 @@ export default function ComposerPhotoGrid({
               key={photo.id}
               disabled={disabled || choosing}
               aria-label={photo.name || "Select photo"}
-              aria-pressed={chosenPhoto === photo.id}
-              onClick={() => chosenPhoto === photo.id ? onClear() : choose(photo)}
+              aria-pressed={chosenPhotos.includes(photo.id)}
+              onClick={() => chosenPhotos.includes(photo.id) ? onClear(photo.id) : choose(photo)}
             >
               <img src={photo.thumbnail} alt="" />
-              {chosenPhoto === photo.id && <span><Check size={15} /></span>}
+              {chosenPhotos.includes(photo.id) && <span><Check size={15} /></span>}
             </button>
           ))}
         </div>

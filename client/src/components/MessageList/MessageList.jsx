@@ -628,17 +628,25 @@ function getSenderDisplayName(message) {
         }] : [];
       })
     : [];
-  const photoIndex = gallery.findIndex(({ message }) =>
+  const stackMessages = openPhoto?.stack;
+  const viewerPhotos = stackMessages
+    ? gallery.filter(({ message }) => stackMessages.some((photo) =>
+        photo === message || sameId(getMessageId(photo), getMessageId(message))
+      ))
+    : gallery;
+  const photoIndex = viewerPhotos.findIndex(({ message }) =>
     message === openPhoto.message || sameId(getMessageId(message), getMessageId(openPhoto.message))
   );
 
-  function openImage(_attachment, message) {
-    setOpenPhoto({ chatId, message });
+  function openImage(message, stack) {
+    setOpenPhoto({ chatId, message: stack ? null : message, stack });
   }
 
   function movePhoto(offset) {
-    const nextPhoto = gallery[photoIndex + offset];
-    if (photoIndex >= 0 && nextPhoto) openImage(nextPhoto.message.attachment, nextPhoto.message);
+    const nextPhoto = viewerPhotos[photoIndex + offset];
+    if (photoIndex >= 0 && nextPhoto) {
+      setOpenPhoto({ ...openPhoto, message: nextPhoto.message });
+    }
   }
 
   async function handleDelete(message, type) {
@@ -1057,12 +1065,14 @@ function getSenderDisplayName(message) {
           )}
       </div>
 
-<MessageLightbox
-  selectedImage={gallery[photoIndex]}
-  onPrevious={photoIndex > 0 ? () => movePhoto(-1) : undefined}
-  onNext={photoIndex >= 0 && photoIndex < gallery.length - 1 ? () => movePhoto(1) : undefined}
-  onClose={() => setOpenPhoto(null)}
-/>
+      <MessageLightbox
+        selectedImage={viewerPhotos[photoIndex]}
+        stackPhotos={stackMessages && photoIndex === -1 ? viewerPhotos : undefined}
+        onSelectPhoto={(message) => setOpenPhoto({ ...openPhoto, message })}
+        onPrevious={photoIndex > 0 ? () => movePhoto(-1) : undefined}
+        onNext={photoIndex >= 0 && photoIndex < viewerPhotos.length - 1 ? () => movePhoto(1) : undefined}
+        onClose={() => setOpenPhoto(stackMessages && photoIndex >= 0 ? { ...openPhoto, message: null } : null)}
+      />
     </>
   );
 }

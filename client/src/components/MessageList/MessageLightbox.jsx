@@ -1,14 +1,24 @@
 
-import { useEffect } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 export default function MessageLightbox({
   selectedImage,
+  stackPhotos,
+  onSelectPhoto,
   onClose,
   onPrevious,
   onNext,
 }) {
+  const galleryRef = useRef(null);
+  const galleryOpen = Boolean(stackPhotos?.length);
+
+  useLayoutEffect(() => {
+    const dialog = galleryRef.current;
+    if (galleryOpen && dialog && !dialog.open) dialog.showModal();
+  }, [galleryOpen]);
+
   useEffect(() => {
     if (!selectedImage) return;
 
@@ -33,6 +43,36 @@ export default function MessageLightbox({
       );
     };
   }, [selectedImage, onClose, onPrevious, onNext]);
+
+  if (galleryOpen) {
+    return createPortal(
+      <dialog
+        ref={galleryRef}
+        className="message-stack-gallery"
+        aria-labelledby="message-stack-title"
+        onCancel={(event) => {
+          event.preventDefault();
+          onClose();
+        }}
+      >
+        <header>
+          <button type="button" aria-label="Close photo gallery" onClick={onClose}>
+            <X size={22} aria-hidden="true" />
+          </button>
+          <h2 id="message-stack-title">{stackPhotos.length} photos</h2>
+        </header>
+        <div className="message-stack-gallery-grid">
+          {stackPhotos.map(({ message, src, alt }, index) => (
+            <button type="button" key={message.id ?? message._id ?? index}
+              aria-label={`Open photo ${index + 1}`} onClick={() => onSelectPhoto(message)}>
+              <img src={src} alt={alt} loading="lazy" />
+            </button>
+          ))}
+        </div>
+      </dialog>,
+      document.body
+    );
+  }
 
   if (!selectedImage) return null;
 

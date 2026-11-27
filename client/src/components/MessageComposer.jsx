@@ -2,11 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Plus, Camera, Mic, Smile, ThumbsUp, Send, X, FileText } from "lucide-react";
 import ComposerPhotoGrid, { hasNativePhotoGrid } from "./ComposerPhotoGrid.jsx";
 
+import { getAttachmentMediaType } from "../utils/messageHelpers";
 import preparePhoto from "../utils/preparePhoto.js";
 import useVoiceRecorder from "../hooks/useVoiceRecorder.js";
 import "./MessageComposer.css";
 
 const emojis = ["😊", "😂", "❤️", "😍", "😮", "😢", "😡", "👍", "🎉", "🙏", "🔥", "👋"];
+const isPhoto = (file) => getAttachmentMediaType({
+  mimeType: file?.type,
+  originalName: file?.name,
+}) === "image";
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 
 function formatFileSize(bytes) {
@@ -27,8 +32,7 @@ export default function MessageComposer({
   const photoInputRef = useRef(null);
   const cameraInputRef = useRef(null);
   const submittingRef = useRef(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [selectedPhoto, setSelectedPhoto] = useState(null);
+  const [attachments, setAttachments] = useState([]);
   const [previewUrl, setPreviewUrl] = useState("");
   const [fileError, setFileError] = useState("");
   const [galleryOpen, setGalleryOpen] = useState(false);
@@ -43,6 +47,9 @@ export default function MessageComposer({
   });
   const voiceBusy = voice.status !== "idle";
   const busy = sending || photoBusy || voiceBusy;
+  const selectedFile = attachments[0]?.file;
+  const photosSelected = isPhoto(selectedFile);
+  const chosenPhotos = attachments.map(({ photoId }) => photoId);
   const hasDraft = Boolean(draft.trim() || selectedFile);
   const attachmentType = selectedFile?.type || "";
 
@@ -61,18 +68,24 @@ export default function MessageComposer({
       return;
     }
     setFileError("");
-    setSelectedFile(file);
-    setSelectedPhoto(photoId);
+    const item = { file, photoId };
+    setAttachments((current) => isPhoto(file)
+      ? [...current.filter(({ file }) => isPhoto(file)), item]
+      : [item]);
   }
 
   function handleFileChange(event) {
-    selectFile(event.target.files?.[0]);
+    const files = Array.from(event.target.files ?? []);
+    if (files.some((file) => file.size > MAX_FILE_BYTES)) {
+      setFileError("Each file must be 10 MB or smaller.");
+    } else {
+      files.forEach((file) => selectFile(file));
+    }
     event.target.value = "";
   }
 
   function removeFile() {
-    setSelectedFile(null);
-    setSelectedPhoto(null);
+    setAttachments([]);
     setFileError("");
   }
 
@@ -86,11 +99,16 @@ onTypingChange?.(false);
     setSending(true);
     setFileError("");
     try {
-      const attachment = await preparePhoto(selectedFile, hd);
-      await sendMessage(event, attachment, {
-        focusInput: !galleryOpen && !like,
-        textOverride: like ? "👍" : undefined,
-      });
+      const queue = attachments.length ? attachments : [{ file: null }];
+      for (const [index, item] of queue.entries()) {
+        const attachment = await preparePhoto(item.file, hd);
+        await sendMessage(event, attachment, {
+          focusInput: index === queue.length - 1 && !galleryOpen && !like,
+          textOverride: index === 0 ? (like ? "👍" : draft) : "",
+          includeReply: index === 0,
+        });
+        setAttachments((current) => current.filter((entry) => entry !== item));
+      }
       setEmojiOpen(false);
       removeFile();
     } catch (error) {
@@ -147,7 +165,7 @@ function handleDraftChange(nextDraft) {
         onChange={handleFileChange}
         accept="image/*,video/mp4,video/webm,video/quicktime,video/3gpp,.pdf,.doc,.docx,.txt,.csv,.xlsx,.zip"
       />
-      <input ref={photoInputRef} type="file" hidden accept="image/*" onChange={handleFileChange} />
+      <input ref={photoInputRef} type="file" hidden multiple accept="image/*" onChange={handleFileChange} />
 
       <input ref={cameraInputRef} type="file" hidden accept="image/*" capture="environment"
         onChange={handleFileChange} />
@@ -228,19 +246,19 @@ function handleDraftChange(nextDraft) {
         </div>
       )}
 
-      {(galleryOpen || attachmentType.startsWith("image/")) && (
+      {(galleryOpen || photosSelected) && (
         <button type="button" className="composer-hd-toggle" aria-label="HD photo quality"
           aria-pressed={hd} disabled={busy} onClick={() => setHd((enabled) => !enabled)}>
           HD {hd ? "on" : "off"}
         </button>
       )}
 
-      {attachmentType.startsWith("image/") && (!galleryOpen || selectedPhoto == null) && (
+      {photosSelected && (
         <button type="button" className="composer-hd-toggle composer-clear-photo"
-          disabled={busy} onClick={removeFile}>Clear photo</button>
+          disabled={busy} onClick={removeFile}>{sending ? "Sending…" : `Clear ${attachments.length} ${attachments.length === 1 ? "photo" : "photos"}`}</button>
       )}
 
-      {selectedFile && !attachmentType.startsWith("image/") && (
+      {selectedFile && !photosSelected && (
         <div className="attachment-preview composer-attachment-preview">
           <div className="attachment-icon"><FileText size={22} /></div>
           <div className="attachment-details">
@@ -259,9 +277,9 @@ function handleDraftChange(nextDraft) {
       {fileError && <p className="attachment-error" role="alert">{fileError}</p>}
       {galleryOpen && (
         <ComposerPhotoGrid
-          chosenPhoto={selectedPhoto}
+          chosenPhotos={chosenPhotos}
           onChoose={selectFile}
-          onClear={removeFile}
+          onClear={(id) => setAttachments((current) => current.filter(({ photoId }) => photoId !== id))}
           onError={setFileError}
           disabled={sending}
           onBusyChange={setPhotoBusy}
