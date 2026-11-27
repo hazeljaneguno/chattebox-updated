@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Image as ImageIcon,
   Video,
@@ -51,17 +51,13 @@ function formatDateTime(value) {
   });
 }
 
-function formatTime(value) {
-  if (!value) return "";
+const MESSAGE_BATCH_GAP_MS = 30 * 60 * 1000;
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) return "";
-
-  return date.toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function startsMessageBatch(current, previous) {
+  if (!current || !Number.isFinite(current.getTime())) return false;
+  return !previous ||
+    previous.toDateString() !== current.toDateString() ||
+    current - previous >= MESSAGE_BATCH_GAP_MS;
 }
 
 function formatDuration(startedAt, endedAt) {
@@ -301,9 +297,11 @@ export default function MessageList({
   onJoinGroupCall,
   onMessageAction,
   onReact,
+  receiptSocket,
 }) {
   const swipeStartRef = useRef(null);
   const messageRefs = useRef(new Map());
+  const pendingSeenReceipts = useRef(new Set());
   const highlightTimerRef = useRef(null);
   const joiningRef = useRef(false);
   const holdTimerRef = useRef(null);
@@ -327,6 +325,49 @@ export default function MessageList({
     user?.id ??
     user?._id ??
     user?.userId;
+
+  useEffect(() => {
+    if (!receiptSocket?.connected || !loggedInUserId || !window.IntersectionObserver) return;
+
+    const unseenRows = new Map();
+    for (const message of safeMessages) {
+      if (!message?.senderId || sameId(message.senderId, loggedInUserId) || message.isDeleted) continue;
+      if (message.type && !["text", "image", "audio", "video", "file"].includes(message.type)) continue;
+      if (message.readBy?.some(({ userId }) => sameId(userId, loggedInUserId))) continue;
+      const id = getMessageId(message);
+      const row = id == null ? null : messageRefs.current.get(String(id));
+      if (row) unseenRows.set(row, String(id));
+    }
+    if (!unseenRows.size) return;
+
+    const event = isGroup ? "group:message:receipt" : "message:receipt";
+    const observer = new IntersectionObserver((entries) => {
+      if (document.visibilityState !== "visible" || !receiptSocket.connected) return;
+      for (const { target, isIntersecting } of entries) {
+        if (!isIntersecting) continue;
+        const messageId = unseenRows.get(target);
+        if (!messageId || pendingSeenReceipts.current.has(messageId)) continue;
+        pendingSeenReceipts.current.add(messageId);
+        receiptSocket.timeout(5000).emit(event, { messageId, status: "seen" }, () => {
+          pendingSeenReceipts.current.delete(messageId);
+        });
+      }
+    });
+
+    function observeVisibleRows() {
+      observer.disconnect();
+      if (document.visibilityState === "visible") {
+        for (const row of unseenRows.keys()) observer.observe(row);
+      }
+    }
+
+    observeVisibleRows();
+    document.addEventListener("visibilitychange", observeVisibleRows);
+    return () => {
+      document.removeEventListener("visibilitychange", observeVisibleRows);
+      observer.disconnect();
+    };
+  }, [safeMessages, loggedInUserId, isGroup, receiptSocket]);
 
   const messageMap = useMemo(() => {
     return new Map(
@@ -640,8 +681,7 @@ function getSenderDisplayName(message) {
           />
         )}
 
-        {safeMessages.map((message, index) => {
-          if (!message) return null;
+        {safeMessages.filter(Boolean).map((message, index, orderedMessages) => {
 
           const rawMessageId =
             getMessageId(message);
@@ -651,11 +691,25 @@ function getSenderDisplayName(message) {
               ? String(rawMessageId)
               : `message-${index}`;
 
+          const timestamp = message.createdAt ? new Date(message.createdAt) : null;
+          const previousTimestamp = orderedMessages[index - 1]?.createdAt;
+          const separator = startsMessageBatch(
+            timestamp,
+            previousTimestamp ? new Date(previousTimestamp) : null
+          ) && (
+            <time className="message-batch-time" dateTime={timestamp.toISOString()}>
+              {formatDateTime(timestamp)}
+            </time>
+          );
+
           if (["group_notice", "conversation_notice"].includes(message.type) && !message.isDeleted) {
             return (
-              <div key={messageId} className="message-call-event-row">
-                <p className="group-change-notice">{message.text}</p>
-              </div>
+              <Fragment key={messageId}>
+                {separator}
+                <div className="message-call-event-row">
+                  <p className="group-change-notice">{message.text}</p>
+                </div>
+              </Fragment>
             );
           }
 
@@ -690,33 +744,46 @@ function getSenderDisplayName(message) {
             };
 
             return (
-              <div
-                key={messageId}
-                className="message-call-event-row"
-              >
-                <CallEvent
-                  call={displayedEvent}
-                  live={live}
-                  joining={
-                    live && joiningCall
-                  }
-                  onJoin={
-                    live
-                      ? () =>
-                          handleJoinCall(
-                            activeGroupCall
-                          )
-                      : undefined
-                  }
-                  error={
-                    live ? joinError : ""
-                  }
-                />
-              </div>
+              <Fragment key={messageId}>
+                {separator}
+                <div
+                  className="message-call-event-row"
+                >
+                  <CallEvent
+                    call={displayedEvent}
+                    live={live}
+                    joining={
+                      live && joiningCall
+                    }
+                    onJoin={
+                      live
+                        ? () =>
+                            handleJoinCall(
+                              activeGroupCall
+                            )
+                        : undefined
+                    }
+                    error={
+                      live ? joinError : ""
+                    }
+                  />
+                </div>
+              </Fragment>
             );
           }
 
           const mine = isMine(message);
+          const readers = mine ? (message.readBy || []).map((receipt) => {
+            const member = isGroup
+              ? activeChat?.members?.find((person) =>
+                sameId(person.id ?? person._id ?? person.userId, receipt.userId))
+              : activeChat;
+            return {
+              id: receipt.userId,
+              name: member?.nickname || member?.username || member?.name || receipt.username || "Someone",
+              photo: receipt.profilePicture || member?.profilePicture || member?.avatar || member?.profileImage || member?.photo,
+            };
+          }) : [];
 
           const menuOpen =
             openMenuId === messageId;
@@ -735,133 +802,128 @@ function getSenderDisplayName(message) {
           const replyTarget =
             getReplyTarget(message);
 
-          const timestamp =
-            message.updatedAt ||
-            message.createdAt;
-
-          const messageTime =
-            formatTime(timestamp);
-
           return (
-            <div
-              key={messageId}
-              ref={(element) => {
-                if (rawMessageId == null) return;
+            <Fragment key={messageId}>
+              {separator}
+              <div
+                ref={(element) => {
+                  if (rawMessageId == null) return;
 
-                if (element) {
-                  messageRefs.current.set(
-                    messageId,
-                    element
-                  );
-                } else {
-                  messageRefs.current.delete(
-                    messageId
-                  );
-                }
-              }}
-              className={`message-row ${
-                mine
-                  ? "message-mine"
-                  : "message-theirs"
-              } ${
-                highlightedMessageId === messageId
-                  ? "message-highlighted"
-                  : ""
-              }`}
-              onTouchStart={(event) =>
-                handleTouchStart(
-                  event,
-                  message
-                )
-              }
-              onTouchMove={(event) => { const t=event.touches?.[0];const start=holdStartRef.current;if(t&&start&&Math.hypot(t.clientX-start.x,t.clientY-start.y)>12)clearTimeout(holdTimerRef.current); }}
-              onContextMenu={(event) => {event.preventDefault();setOpenMenuId(messageId);}}
-              onTouchEnd={(event) =>
-                handleTouchEnd(
-                  event,
-                  message
-                )
-              }
-              onTouchCancel={
-                handleTouchCancel
-              }
-            >
-              <MessageBubble
-                message={message}
-                mine={mine}
-                onReact={onReact}
-                onMessageAction={onMessageAction}
-                user={user}
-                loggedInUserId={
-                  loggedInUserId
-                }
-                isGroup={isGroup}
-                messageTime={messageTime}
-                replyTarget={replyTarget}
-                editing={editing}
-                editDraft={editDraft}
-                savingEdit={savingEdit}
-                setEditDraft={setEditDraft}
-                saveEditedMessage={
-                  saveEditedMessage
-                }
-                cancelEditing={
-                  cancelEditing
-                }
-                startEditing={
-                  startEditing
-                }
-                onReply={() =>
-                  onReply?.(message)
-                }
-                removeImage={removeImage}
-                onOpenImage={openImage}
-                jumpToMessage={
-                  jumpToMessage
-                }
-                menuOpen={menuOpen}
-                onToggleMenu={() =>
-                  setOpenMenuId(
-                    menuOpen
-                      ? null
-                      : messageId
+                  if (element) {
+                    messageRefs.current.set(
+                      messageId,
+                      element
+                    );
+                  } else {
+                    messageRefs.current.delete(
+                      messageId
+                    );
+                  }
+                }}
+                className={`message-row ${
+                  mine
+                    ? "message-mine"
+                    : "message-theirs"
+                } ${
+                  highlightedMessageId === messageId
+                    ? "message-highlighted"
+                    : ""
+                }`}
+                onTouchStart={(event) =>
+                  handleTouchStart(
+                    event,
+                    message
                   )
                 }
-                confirmDelete={
-                  confirmingDelete
-                }
-                deleteType={deleteType}
-                onDeleteForYou={() => {
-                  setDeleteType(
-                    "deleteForYou"
-                  );
-                  setConfirmDeleteId(
-                    messageId
-                  );
-                  setOpenMenuId(null);
-                }}
-                onDeleteForEveryone={() => {
-                  setDeleteType(
-                    "deleteForEveryone"
-                  );
-                  setConfirmDeleteId(
-                    messageId
-                  );
-                  setOpenMenuId(null);
-                }}
-                onConfirmDelete={(
-                  targetMessage
-                ) =>
-                  handleDelete(
-                    targetMessage,
-                    deleteType
+                onTouchMove={(event) => { const t=event.touches?.[0];const start=holdStartRef.current;if(t&&start&&Math.hypot(t.clientX-start.x,t.clientY-start.y)>12)clearTimeout(holdTimerRef.current); }}
+                onContextMenu={(event) => {event.preventDefault();setOpenMenuId(messageId);}}
+                onTouchEnd={(event) =>
+                  handleTouchEnd(
+                    event,
+                    message
                   )
                 }
-                onCancelDelete={() =>
-                  setConfirmDeleteId(null)
+                onTouchCancel={
+                  handleTouchCancel
                 }
-              />
-            </div>
+              >
+                <MessageBubble
+                  message={message}
+                  mine={mine}
+                  readers={readers}
+                  onReact={onReact}
+                  onMessageAction={onMessageAction}
+                  user={user}
+                  loggedInUserId={
+                    loggedInUserId
+                  }
+                  isGroup={isGroup}
+                  replyTarget={replyTarget}
+                  editing={editing}
+                  editDraft={editDraft}
+                  savingEdit={savingEdit}
+                  setEditDraft={setEditDraft}
+                  saveEditedMessage={
+                    saveEditedMessage
+                  }
+                  cancelEditing={
+                    cancelEditing
+                  }
+                  startEditing={
+                    startEditing
+                  }
+                  onReply={() =>
+                    onReply?.(message)
+                  }
+                  removeImage={removeImage}
+                  onOpenImage={openImage}
+                  jumpToMessage={
+                    jumpToMessage
+                  }
+                  menuOpen={menuOpen}
+                  onToggleMenu={() =>
+                    setOpenMenuId(
+                      menuOpen
+                        ? null
+                        : messageId
+                    )
+                  }
+                  confirmDelete={
+                    confirmingDelete
+                  }
+                  deleteType={deleteType}
+                  onDeleteForYou={() => {
+                    setDeleteType(
+                      "deleteForYou"
+                    );
+                    setConfirmDeleteId(
+                      messageId
+                    );
+                    setOpenMenuId(null);
+                  }}
+                  onDeleteForEveryone={() => {
+                    setDeleteType(
+                      "deleteForEveryone"
+                    );
+                    setConfirmDeleteId(
+                      messageId
+                    );
+                    setOpenMenuId(null);
+                  }}
+                  onConfirmDelete={(
+                    targetMessage
+                  ) =>
+                    handleDelete(
+                      targetMessage,
+                      deleteType
+                    )
+                  }
+                  onCancelDelete={() =>
+                    setConfirmDeleteId(null)
+                  }
+                />
+              </div>
+            </Fragment>
           );
         })}
 

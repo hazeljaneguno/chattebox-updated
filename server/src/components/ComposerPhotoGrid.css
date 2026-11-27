@@ -1,0 +1,85 @@
+.composer-photos {
+  margin-top: 8px;
+  color: var(--composer-text, inherit);
+}
+
+.composer-photos-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-bottom: 8px;
+}
+
+.composer-photos-actions button {
+  padding: 7px 10px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+}
+
+.composer-photos p {
+  margin: 2px 0 8px;
+  font-size: 12px;
+}
+
+.composer-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+  gap: 5px;
+  max-height: min(22dvh, 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.composer-photos-grid button {
+  position: relative;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  aspect-ratio: 1;
+  background: transparent;
+}
+
+.composer-photos-grid button[aria-pressed="true"] {
+  border-color: var(--purple, #6756d9);
+}
+
+.composer-photos-grid img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.composer-photos-grid span {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  color: white;
+  background: #5541cd;
+}
+
+.composer-wrap .composer-attachment-preview {
+  margin-top: 8px;
+}
+
+.composer-photos-actions select {
+  max-width: min(100%, 185px);
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 1px solid var(--composer-border, #ded9eb);
+  border-radius: 8px;
+  color: var(--composer-text, #201a33);
+  background: var(--composer-input-bg, #fff);
+  font: inherit;
+  font-size: 13px;
+}

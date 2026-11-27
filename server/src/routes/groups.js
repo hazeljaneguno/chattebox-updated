@@ -1,4 +1,5 @@
 
+import { loadReceiptReaders, messageReceipts } from "../utils/messageReceipts.js";
 import { Router } from "express";
 import mongoose from "mongoose";
 import { latestGroupMessages } from "../services/conversationActivity.js";
@@ -218,6 +219,7 @@ router.get("/:groupId/messages", requireAuth, async (req, res, next) => {
   })
   .lean();
 
+const receiptReaders = await loadReceiptReaders(messages);
 res.json({
   messages: messages.map((message) => ({
     id: message._id.toString(),
@@ -256,6 +258,7 @@ res.json({
 
 createdAt: message.createdAt,
 updatedAt: message.updatedAt,
+...messageReceipts(message, receiptReaders),
   })),
 });
 

@@ -714,3 +714,44 @@
   font: inherit;
 }
 .nickname-dialog-actions button[type="submit"] { color: #fff; background: #6848ac; }
+
+.chat-details-typing-state {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted, #657082);
+  font-size: 12px;
+}
+
+.chat-details-typing-option {
+  cursor: pointer;
+}
+
+.chat-details-typing-option input {
+  appearance: none;
+  display: grid;
+  align-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 26px;
+  padding: 3px;
+  margin: 0;
+  border-radius: 20px;
+  background: #746e82;
+  cursor: pointer;
+}
+
+.chat-details-typing-option input:checked {
+  background: var(--primary, #7868e6);
+}
+
+.chat-details-typing-option input::before {
+  content: "";
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.chat-details-typing-option input:checked::before {
+  justify-self: end;
+}

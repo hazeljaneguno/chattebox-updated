@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { loadReceiptReaders, messageReceipts } from "../utils/messageReceipts.js";
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
 import User from "../models/User.js";
@@ -62,6 +63,7 @@ if (conversation?.status === "blocked") {
       .populate("reactions.user", "_id username")
     .lean();
 
+    const receiptReaders = await loadReceiptReaders(messages);
     res.json({
       messages: messages.reverse().map((message) => ({
         id: message._id.toString(),
@@ -79,6 +81,7 @@ if (conversation?.status === "blocked") {
 
         createdAt: message.createdAt,
         updatedAt: message.updatedAt,
+        ...messageReceipts(message, receiptReaders),
 
         edited: Boolean(
   message.updatedAt &&

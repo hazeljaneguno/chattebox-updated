@@ -89,6 +89,7 @@ const titleMap = {
   addMembers: "Add members",
   search: "Search conversation",
   notifications: "Notifications & sounds",
+  typingIndicator: "Typing indicator",
   customize: "Customize chat",
 };
 
@@ -101,6 +102,7 @@ const internalPages = new Set([
   "members",
   "search",
   "notifications",
+  "typingIndicator",
   "customize",
 ]);
 
@@ -108,6 +110,8 @@ export default function ChatDetails({
   chat,
   online = false,
   showActiveStatus = true,
+  showTypingIndicator = true,
+  onTypingIndicatorChange,
   onJumpToMessage,
   onClose,
   onAction,
@@ -650,7 +654,14 @@ export default function ChatDetails({
                       >
                         <Icon size={19} />
 
-                        <span>{label}</span>
+                        <span>
+                          {label}
+                          {action === "typingIndicator" && (
+                            <small className="chat-details-typing-state">
+                              {showTypingIndicator ? "On" : "Off"}
+                            </small>
+                          )}
+                        </span>
 
                         <ChevronRight size={17} />
                       </button>
@@ -658,6 +669,28 @@ export default function ChatDetails({
                 </div>
               ))}
             </>
+          ) : page === "typingIndicator" ? (
+            <div className="chat-details-section">
+              <h3>Typing indicator</h3>
+              <label className="chat-details-item chat-details-typing-option">
+                <span>
+                  Show typing indicator
+                  <small id="chat-details-typing-description" className="chat-details-typing-state">
+                    {showTypingIndicator
+                      ? "Others in this chat can see when you’re composing a message."
+                      : "Your typing is hidden from others in this chat."}
+                  </small>
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  aria-label="Show typing indicator"
+                  aria-describedby="chat-details-typing-description"
+                  checked={showTypingIndicator}
+                  onChange={(event) => onTypingIndicatorChange(event.target.checked)}
+                />
+              </label>
+            </div>
           ) : page === "notifications" ? (
             /* NOTIFICATIONS */
             <div className="chat-details-section">

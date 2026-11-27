@@ -10,6 +10,7 @@ import {
   ZoomIn,
 } from "lucide-react";
 
+import { initials } from "../Avatar.jsx";
 import MentionText from "../MentionText";
 
 import MessageActions from "./MessageActions";
@@ -74,10 +75,10 @@ function getMessageAuthorName(message, user, mine) {
 export default function MessageBubble({
   message,
   mine,
+  readers = [],
   user,
   isGroup = false,
   loggedInUserId,
-  messageTime,
   replyTarget,
   editing,
   editDraft,
@@ -195,10 +196,6 @@ export default function MessageBubble({
   <div className="message-heading">
     <span className="sender-name">
       {getSenderDisplayName()}
-    </span>
-
-    <span className="message-time">
-      {messageTime}
     </span>
   </div>
 )}
@@ -593,22 +590,35 @@ export default function MessageBubble({
               <span className="edited-label">Edited</span>
             )}
 
-          <span className="message-time">
-            {messageTime}
-          </span>
-
           <span className="read-check" aria-hidden="true">
             {message.read || message.readBy?.length || message.deliveredTo?.length
               ? <CheckCheck size={15} />
               : <Check size={15} />}
           </span>
-          <span className="message-receipt-label">
+          <span className="message-receipt-label message-receipt-readers">
             {message.read || message.readBy?.length
-              ? "Seen"
+              ? (readers.length ? `Seen by ${readers.map(({ name }) => name).join(", ")}` : "Seen")
               : message.deliveredTo?.length
                 ? "Delivered"
                 : "Sent"}
           </span>
+          {readers.length > 0 && (
+            <span className="message-seen-avatars" aria-hidden="true">
+              {readers.slice(0, 4).map(({ id, name, photo }) => (
+                <span className="message-seen-initial" key={id} title={name}>
+                  {initials(name)}
+                  {photo && (
+                    <img
+                      src={getAttachmentUrl({ url: photo })}
+                      alt=""
+                      onError={(event) => { event.currentTarget.hidden = true; }}
+                    />
+                  )}
+                </span>
+              ))}
+              {readers.length > 4 && <small>+{readers.length - 4}</small>}
+            </span>
+          )}
         </div>
       )}
     </div>

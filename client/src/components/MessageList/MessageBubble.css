@@ -608,3 +608,30 @@
   border-color: transparent;
   box-shadow: none;
 }
+
+.message-receipt-label.message-receipt-readers {
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.message-seen-avatars .message-seen-initial {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-secondary, #eee8ff);
+  color: var(--text, #332d40);
+}
+
+.message-seen-avatars .message-seen-initial img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: 0;
+}
+
+.message-seen-avatars .message-seen-initial img[hidden] {
+  display: none;
+}

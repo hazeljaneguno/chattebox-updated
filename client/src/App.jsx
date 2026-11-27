@@ -141,36 +141,6 @@ export default function App() {
   const [user, setUser] = useState(null);
 
   const authenticatedUserId = user?.id ?? user?._id ?? user?.userId ?? null;
-  const typingPreferenceKey = authenticatedUserId == null
-    ? null
-    : `chatterbox:show-typing:${authenticatedUserId}`;
-  const [typingPreference, setTypingPreference] = useState(null);
-
-  const savedTypingPreference = useMemo(() => {
-    if (!typingPreferenceKey) return true;
-
-    try {
-      return window.localStorage.getItem(typingPreferenceKey) !== "off";
-    } catch {
-      return true;
-    }
-  }, [typingPreferenceKey]);
-
-  const showTypingIndicator = typingPreference?.key === typingPreferenceKey
-    ? typingPreference.enabled
-    : savedTypingPreference;
-
-  function handleTypingPreferenceChange(enabled) {
-    if (!typingPreferenceKey) return;
-    setTypingPreference({ key: typingPreferenceKey, enabled });
-
-    try {
-      window.localStorage.setItem(typingPreferenceKey, enabled ? "on" : "off");
-    } catch {
-      // The setting still applies for this session if storage is unavailable.
-    }
-  }
-
   const [checkingSession, setCheckingSession] = useState(true);
 
   const [chats, setChats] = useState([]);
@@ -295,6 +265,34 @@ const [callMessageNotifications, setCallMessageNotifications] = useState({});
   const activeChat = chats.find((chat) =>
     sameId(chat.id, activeId)
   );
+  const accountTypingKey = `chatterbox:show-typing:${authenticatedUserId}`;
+  const chatTypingKey = activeChat?.id && authenticatedUserId != null
+    ? `${accountTypingKey}:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`
+    : null;
+  const [typingPreferences, setTypingPreferences] = useState(() => new Map());
+
+  const savedTypingPreference = useMemo(() => {
+    if (!chatTypingKey) return true;
+    try {
+      const preference = window.localStorage.getItem(chatTypingKey)
+        ?? window.localStorage.getItem(accountTypingKey);
+      return preference !== "off";
+    } catch {
+      return true;
+    }
+  }, [accountTypingKey, chatTypingKey]);
+  const showTypingIndicator = typingPreferences.get(chatTypingKey) ?? savedTypingPreference;
+
+  function handleTypingPreferenceChange(enabled) {
+    if (!chatTypingKey) return;
+    setTypingPreferences((previous) => new Map(previous).set(chatTypingKey, enabled));
+    try {
+      window.localStorage.setItem(chatTypingKey, enabled ? "on" : "off");
+    } catch {
+      // The setting still applies for this session if storage is unavailable.
+    }
+  }
+
   const applyGroupNickname = useCallback((update) => {
     if (!update?.groupId || !update.userId || typeof update.nickname !== "string") return;
 
@@ -3077,6 +3075,8 @@ const typingMessage =
   <ChatDetails
     key={`details:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
     chat={activeChat}
+    showTypingIndicator={showTypingIndicator}
+    onTypingIndicatorChange={handleTypingPreferenceChange}
     onJumpToMessage={(id) => {
       setMessageJump({ id, chatId: activeChat.id });
       setShowChatDetails(false);
@@ -3161,6 +3161,7 @@ onAction={async (action, payload) => {
 
 
 <ConversationBody
+  receiptSocket={socketStatus === "connected" ? socket : null}
   activeChat={conversationChat}
   messageJump={sameId(messageJump?.chatId, activeChat.id) ? messageJump : null}
   loadingMessages={loadingMessages}
@@ -3313,8 +3314,6 @@ onAction={async (action, payload) => {
         showActiveStatus={showActiveStatus}
         onActiveStatusChange={handleActiveStatusChange}
         savingActiveStatus={savingActiveStatus}
-        showTypingIndicator={showTypingIndicator}
-        onTypingIndicatorChange={handleTypingPreferenceChange}
       />
 
       {/* MESSAGE REQUESTS MODAL */}

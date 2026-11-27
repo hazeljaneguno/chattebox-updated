@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Message from "../models/Message.js";
 import GroupMessage from "../models/GroupMessage.js";
 import Group from "../models/Group.js";
-import User from "../models/User.js";
+import { loadReceiptReaders, messageReceipts } from "../utils/messageReceipts.js";
 
 export function registerMessageReceiptHandlers(io, socket) {
   const userId = String(socket.user.id);
@@ -87,27 +87,16 @@ export function registerMessageReceiptHandlers(io, socket) {
                 at: now,
               },
             },
-          }
+          },
+          { timestamps: false }
         );
       }
 
       const updated = await Model.findById(message._id)
         .select("deliveredTo readBy");
 
-      const readerIds = (updated.readBy || []).map(
-        (receipt) => receipt.userId
-      );
-
-      const readers = await User.find({
-        _id: { $in: readerIds },
-      }).select("_id username profilePicture");
-
-      const readerMap = new Map(
-        readers.map((reader) => [
-          String(reader._id),
-          reader,
-        ])
-      );
+      if (!updated) return callback?.({ ok: false, message: "Message not found." });
+      const readers = await loadReceiptReaders([updated]);
 
       const receiptUpdate = {
         messageId: String(message._id),
@@ -116,28 +105,7 @@ export function registerMessageReceiptHandlers(io, socket) {
         }),
         status,
 
-        deliveredTo: (updated.deliveredTo || []).map(
-          (receipt) => ({
-            userId: String(receipt.userId),
-            at: receipt.at,
-          })
-        ),
-
-        readBy: (updated.readBy || []).map(
-          (receipt) => {
-            const reader = readerMap.get(
-              String(receipt.userId)
-            );
-
-            return {
-              userId: String(receipt.userId),
-              at: receipt.at,
-              username: reader?.username || "User",
-              profilePicture:
-                reader?.profilePicture || "",
-            };
-          }
-        ),
+        ...messageReceipts(updated, readers),
       };
 
       const event = isGroup

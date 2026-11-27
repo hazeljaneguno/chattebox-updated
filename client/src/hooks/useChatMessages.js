@@ -33,6 +33,9 @@ export default function useChatMessages({
                   ? deliveredTo
                   : message.deliveredTo,
                 read: Boolean(message.read || readBy?.length),
+                readBy: Array.isArray(readBy) && readBy.length >= (message.readBy?.length ?? 0)
+                  ? readBy
+                  : message.readBy,
               }
             : message),
         };

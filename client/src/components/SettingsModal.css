@@ -339,47 +339,6 @@
   background: #22a06b;
 }
 
-.typing-indicator-link {
-  width: 100%;
-  margin-top: 12px;
-  color: var(--text, #25212d);
-  text-align: left;
-}
-
-.typing-indicator-link:hover {
-  border-color: var(--primary, #7868e6);
-}
-
-.settings-header.typing-indicator-header {
-  justify-content: flex-start;
-  align-items: center;
-  gap: 12px;
-}
-
-.typing-indicator-header .settings-close:hover {
-  transform: none;
-}
-
-.typing-indicator-option,
-.typing-indicator-link {
-  background: var(--surface, #fff);
-  border-color: var(--border, #e8e5ed);
-}
-
-.typing-indicator-option strong,
-.typing-indicator-link strong {
-  color: var(--text, #25212d);
-}
-
-.typing-indicator-option small,
-.typing-indicator-link small {
-  color: var(--muted, #625c6b);
-}
-
-.typing-indicator-option .active-status-switch.enabled {
-  background: var(--primary, #7868e6);
-}
-
 .active-status-switch:disabled {
   cursor: not-allowed;
   opacity: 0.6;

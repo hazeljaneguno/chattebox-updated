@@ -1,4 +1,5 @@
 
+import { loadReceiptReaders, messageReceipts } from "../utils/messageReceipts.js";
 import { Router } from "express";
 import mongoose from "mongoose";
 
@@ -52,6 +53,7 @@ router.get("/:userId", requireAuth, async (req, res, next) => {
       })
       .lean();
 
+    const receiptReaders = await loadReceiptReaders(messages);
     return res.json({
       messages: messages.map((message) => ({
         id: message._id.toString(),
@@ -62,6 +64,7 @@ router.get("/:userId", requireAuth, async (req, res, next) => {
         attachment: message.attachment || null,
         createdAt: message.createdAt,
         updatedAt: message.updatedAt,
+        ...messageReceipts(message, receiptReaders),
 
         replyTo: message.replyTo
           ? {

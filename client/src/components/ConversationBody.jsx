@@ -54,6 +54,7 @@ function ActiveConversationBody({
   messageJump,
   user,
   socketRef,
+  receiptSocket,
   onReply,
   deleteMessage,
   editingMessageId,
@@ -167,12 +168,6 @@ function react(message, emoji) {
         activeChat.background || "default"
       }`}
     >
-      <div className="day-divider">
-        <span />
-        <p>MESSAGES</p>
-        <span />
-      </div>
-
       {loadingMessages && (
         <div
           className="loading-messages"
@@ -213,6 +208,7 @@ function react(message, emoji) {
         )}
 
       <MessageList
+        receiptSocket={receiptSocket}
         messageJump={messageJump}
         messages={messages}
         onMessageAction={act}
