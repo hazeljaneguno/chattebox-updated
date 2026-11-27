@@ -249,13 +249,18 @@ function GroupCallContent({
   chatOpenRef.current = chatOpen;
 
   const [reactionPickerOpen, setReactionPickerOpen] = useState(false);
-  const [meetingReaction, setMeetingReaction] = useState(null);
-  const reactionTimeout = useRef(null);
+  const [meetingReactions, setMeetingReactions] = useState([]);
+  const reactionTimeouts = useRef(new Map());
+  const reactionId = useRef(0);
 
   function showMeetingReaction(emoji, name) {
-    clearTimeout(reactionTimeout.current);
-    setMeetingReaction({ emoji, name });
-    reactionTimeout.current = setTimeout(() => setMeetingReaction(null), 2500);
+    const id = ++reactionId.current;
+    setMeetingReactions((previous) => [...previous, { id, emoji, name }]);
+    const timeout = setTimeout(() => {
+      reactionTimeouts.current.delete(id);
+      setMeetingReactions((previous) => previous.filter((reaction) => reaction.id !== id));
+    }, 2500);
+    reactionTimeouts.current.set(id, timeout);
   }
 
   useEffect(() => {
@@ -271,7 +276,8 @@ function GroupCallContent({
     room.on(RoomEvent.DataReceived, receiveReaction);
     return () => {
       room.off(RoomEvent.DataReceived, receiveReaction);
-      clearTimeout(reactionTimeout.current);
+      for (const timer of reactionTimeouts.current.values()) clearTimeout(timer);
+      reactionTimeouts.current.clear();
     };
   }, [room]);
 
@@ -587,6 +593,14 @@ function toggleChat() {
           </div>
 
           <div className="group-call-bottom-controls">
+            <div className="meeting-reaction-stream">
+              {meetingReactions.map(({ id, emoji, name }) => (
+                <output key={id} className="meeting-reaction-popover">
+                  <span>{emoji}</span>
+                  {name}
+                </output>
+              ))}
+            </div>
             <ControlBar
               controls={{
                 microphone: true,
@@ -632,12 +646,6 @@ function toggleChat() {
                     </button>
                   ))}
                 </div>
-              )}
-              {meetingReaction && (
-                <output className="meeting-reaction-popover">
-                  <span>{meetingReaction.emoji}</span>
-                  {meetingReaction.name}
-                </output>
               )}
             </div>
 

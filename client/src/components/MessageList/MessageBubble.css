@@ -609,6 +609,11 @@
   box-shadow: none;
 }
 
+.message-bubble.bubble-emoji-only > .message-text {
+  font-size: clamp(40px, 8vw, 56px);
+  line-height: 1.2;
+}
+
 .message-receipt-label.message-receipt-readers {
   min-width: 0;
   white-space: normal;

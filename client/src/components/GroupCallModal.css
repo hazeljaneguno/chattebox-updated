@@ -294,6 +294,7 @@
 /* Bottom controls */
 
 .group-call-bottom-controls {
+  position: relative;
   box-sizing: border-box;
   display: flex;
   align-items: center;
@@ -734,8 +735,7 @@
   position: relative;
 }
 
-.meeting-reaction-picker,
-.meeting-reaction-popover {
+.meeting-reaction-picker {
   position: absolute;
   bottom: calc(100% + 8px);
   right: 0;
@@ -762,8 +762,28 @@
   cursor: pointer;
 }
 
+.meeting-reaction-stream {
+  position: absolute;
+  inset: auto 8px calc(100% + 8px);
+  z-index: 8;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
 .meeting-reaction-popover {
   display: grid;
+  max-width: 100px;
+  padding: 6px;
+  border: 1px solid #526176;
+  border-radius: 12px;
+  background: #151e2d;
+  color: #fff;
+  text-align: center;
+  overflow-wrap: anywhere;
   justify-items: center;
   min-width: 58px;
   font-size: 12px;
@@ -772,4 +792,22 @@
 
 .meeting-reaction-popover span {
   font-size: 26px;
+}
+
+
+.meeting-reaction-popover {
+  animation: meeting-reaction-rise 2.5s ease-out both;
+}
+
+@keyframes meeting-reaction-rise {
+  0% { opacity: 0; transform: translateY(0) scale(0.8); }
+  15% { opacity: 1; transform: translateY(-18px) scale(1); }
+  60% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(clamp(-760px, -72dvh, -160px)) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .meeting-reaction-popover {
+    animation: none;
+  }
 }
