@@ -9,6 +9,27 @@ import { requireAuth } from "../middleware/requireAuth.js";
 
 const router = Router();
 
+async function postGroupNotice(io, group, actor, text) {
+  const notice = await GroupMessage.create({
+    group: group._id,
+    sender: actor._id,
+    type: "group_notice",
+    text,
+  });
+  const message = {
+    id: String(notice._id),
+    groupId: String(notice.group),
+    senderId: String(notice.sender),
+    senderName: actor.username || "A group member",
+    type: notice.type,
+    text: notice.text,
+    createdAt: notice.createdAt,
+  };
+  for (const memberId of group.members) {
+    io?.to(`user:${memberId}`).emit("group:message:new", message);
+  }
+}
+
 // Get groups that the logged-in user belongs to
 router.get("/", requireAuth, async (req, res, next) => {
   try {
@@ -33,7 +54,7 @@ router.get("/", requireAuth, async (req, res, next) => {
   members: group.members.map((member) => ({
     id: member._id.toString(),
     username: member.username,
-    nickname: group.nickname?.[String(member._id)] ?? "",
+    nickname: group.nicknames?.[String(member._id)] ?? "",
   })),
 })),
     });
@@ -385,10 +406,11 @@ router.patch("/:groupId/background", requireAuth, async (req, res, next) => {
       });
     }
 
-    const group = await Group.findOne({
-      _id: groupId,
-      members: req.user._id,
-    }).populate("members", "_id username");
+    const group = await Group.findOneAndUpdate(
+      { _id: groupId, members: req.user._id },
+      { $set: { background } },
+      { new: false, runValidators: true },
+    ).select("_id members background");
 
     if (!group) {
       return res.status(404).json({
@@ -396,12 +418,9 @@ router.patch("/:groupId/background", requireAuth, async (req, res, next) => {
       });
     }
 
-    group.background = background;
-    await group.save();
-
     const update = {
       groupId: group._id.toString(),
-      background: group.background,
+      background,
       changedBy: {
         id: String(req.user._id),
         username: req.user.username,
@@ -411,10 +430,15 @@ router.patch("/:groupId/background", requireAuth, async (req, res, next) => {
     const io = req.app.get("io");
 
     for (const member of group.members) {
-      io?.to(`user:${member._id.toString()}`).emit(
+      io?.to(`user:${member}`).emit(
         "group:background:updated",
         update
       );
+    }
+
+    if ((group.background || "default") !== background) {
+      const actor = req.user.username || "A group member";
+      await postGroupNotice(io, group, req.user, `${actor} changed the chat background to ${background}.`);
     }
 
     return res.json({
@@ -620,6 +644,10 @@ router.patch("/:groupId/nickname", requireAuth, async (req, res, next) => {
 
     for (const memberId of groupBeforeUpdate.members) {
       io?.to(`user:${memberId}`).emit("group:nickname:updated", update);
+    }
+
+    if (notice) {
+      await postGroupNotice(io, groupBeforeUpdate, req.user, notice);
     }
 
     return res.json(update);

@@ -84,6 +84,7 @@ const groupMessageSchema = new mongoose.Schema(
       type: String,
       enum: [
         "text",
+        "group_notice",
         "group_call",
         "group_call_started",
         "group_call_ended",
