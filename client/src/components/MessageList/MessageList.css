@@ -825,3 +825,14 @@
     animation: none;
   }
 }
+
+.group-change-notice {
+  margin: 4px auto;
+  padding: 5px 12px;
+  border-radius: 16px;
+  background: var(--composer-input-bg, #fff);
+  color: var(--composer-text, #332d40);
+  font-size: 12px;
+  text-align: center;
+  overflow-wrap: anywhere;
+}

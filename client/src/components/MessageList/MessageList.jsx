@@ -651,6 +651,14 @@ function getSenderDisplayName(message) {
               ? String(rawMessageId)
               : `message-${index}`;
 
+          if (message.type === "group_notice" && !message.isDeleted) {
+            return (
+              <div key={messageId} className="message-call-event-row">
+                <p className="group-change-notice">{message.text}</p>
+              </div>
+            );
+          }
+
           // Render saved call history.
           if (isCallEvent(message)) {
             const event = getEventCall(message);
