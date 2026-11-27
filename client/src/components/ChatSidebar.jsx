@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 
 import "./ChatSidebar.css";
+import { typingChatKey } from "../hooks/useTypingIndicator.js";
 import Avatar, { initials, colorFor } from "./Avatar.jsx";
 import { formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
 
@@ -22,6 +23,7 @@ export default function ChatSidebar({
   search,
   setSearch,
   filteredChats,
+  typingByChat,
   chatFilter,
   setChatFilter,
   onlineIds,
@@ -169,6 +171,8 @@ setShowSettings,
 
         {filteredChats.map((chat) => {
           const last = latestChatMessage(chat);
+          const typingUsers = typingByChat?.get(typingChatKey(chat.id, chat.isGroup));
+          const isTyping = Boolean(typingUsers?.length);
 
           return (
             <button
@@ -190,8 +194,8 @@ setShowSettings,
                 </span>
 
                 <span className="conversation-bottom">
-                  <span className="last-message">
-                    {last
+                  <span className={isTyping ? "last-message is-typing" : "last-message"}>
+                    {isTyping ? "Typing…" : last
                       ? `${sameId(last.senderId, user.id) ? "You: " : ""}${getReplyPreview(last)}`
                       : chat.isGroup
                         ? "Start a group conversation"

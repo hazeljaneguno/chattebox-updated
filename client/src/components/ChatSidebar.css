@@ -216,3 +216,10 @@
     max-height: 100dvh;
   }
 }
+
+
+.last-message.is-typing {
+  color: var(--primary, #7868e6);
+  font-style: italic;
+  font-weight: 600;
+}

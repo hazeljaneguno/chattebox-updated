@@ -394,7 +394,7 @@ const {
   leaveGroupCall,
 } = useGroupCall();
 
-const { handleTypingChange, typingUserIds } =
+const { handleTypingChange, typingUserIds, typingByChat } =
   useTypingIndicator(socket, activeChat, showTypingIndicator);
 
   // =========================
@@ -3003,6 +3003,7 @@ const typingMessage =
         }
       >
         <ChatSidebar
+          typingByChat={typingByChat}
           user={user}
           chats={chats}
           activeId={activeId}

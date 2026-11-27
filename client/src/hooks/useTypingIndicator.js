@@ -4,11 +4,14 @@ const IDLE_MS = 2000;
 const REFRESH_MS = 1500;
 const EXPIRE_MS = 5000;
 
+export function typingChatKey(chatId, isGroup) {
+  return `${Boolean(isGroup)}:${chatId}`;
+}
+
 export default function useTypingIndicator(socket, activeChat, showTypingIndicator = true) {
   const chatId = String(activeChat?.id ?? "");
   const isGroup = Boolean(activeChat?.isGroup);
-  const chatKey = `${isGroup}:${chatId}`;
-  const [activity, setActivity] = useState(null);
+  const [typingByChat, setTypingByChat] = useState(() => new Map());
   const idleTimer = useRef(null);
   const lastSentAt = useRef(0);
 
@@ -46,56 +49,78 @@ export default function useTypingIndicator(socket, activeChat, showTypingIndicat
   }, [showTypingIndicator, stopTyping]);
 
   useEffect(() => {
-    if (!socket || !chatId) return;
+    if (!socket) return;
+    socket.on("disconnect", stopTyping);
+    return () => {
+      socket.off("disconnect", stopTyping);
+      stopTyping();
+    };
+  }, [socket, stopTyping]);
 
-    const people = new Map();
-    const timers = new Map();
+  useEffect(() => {
+    if (!socket) return;
 
-    function publish() {
-      setActivity({ chatKey, people: [...people.values()] });
+    const chats = new Map();
+
+    function publish(key, sources) {
+      const users = [...new Set([...sources.values()].map(({ userId }) => userId))];
+      setTypingByChat((previous) => {
+        const next = new Map(previous);
+        if (users.length) next.set(key, users);
+        else next.delete(key);
+        return next;
+      });
     }
 
-    function remove(sourceId) {
-      clearTimeout(timers.get(sourceId));
-      timers.delete(sourceId);
-      if (people.delete(sourceId)) publish();
+    function remove(key, sources, sourceId) {
+      clearTimeout(sources.get(sourceId)?.timer);
+      if (!sources.delete(sourceId)) return;
+      if (!sources.size) chats.delete(key);
+      publish(key, sources);
     }
 
     function handleTyping(event) {
-      if (event?.chatId !== chatId || event.isGroup !== isGroup) return;
+      if (event?.chatId == null || event.userId == null) return;
 
-      const { sourceId, userId } = event;
+      const key = typingChatKey(event.chatId, event.isGroup);
+      const sourceId = event.sourceId ?? event.userId;
+      let sources = chats.get(key);
       if (!event.isTyping) {
-        remove(sourceId);
+        if (sources) remove(key, sources, sourceId);
         return;
       }
 
-      clearTimeout(timers.get(sourceId));
-      people.set(sourceId, userId);
-      timers.set(sourceId, setTimeout(() => remove(sourceId), EXPIRE_MS));
-      publish();
+      if (!sources) {
+        sources = new Map();
+        chats.set(key, sources);
+      }
+      const previous = sources.get(sourceId);
+      clearTimeout(previous?.timer);
+      sources.set(sourceId, {
+        userId: event.userId,
+        timer: setTimeout(() => remove(key, sources, sourceId), EXPIRE_MS),
+      });
+      if (previous?.userId !== event.userId) publish(key, sources);
     }
 
     function reset() {
-      stopTyping();
-      timers.forEach((timer) => clearTimeout(timer));
-      timers.clear();
-      people.clear();
-      setActivity(null);
+      for (const sources of chats.values()) {
+        for (const { timer } of sources.values()) clearTimeout(timer);
+      }
+      chats.clear();
+      setTypingByChat((previous) => previous.size ? new Map() : previous);
     }
 
     socket.on("chat:typing", handleTyping);
     socket.on("disconnect", reset);
-
     return () => {
       socket.off("chat:typing", handleTyping);
       socket.off("disconnect", reset);
       reset();
     };
-  }, [socket, chatId, isGroup, chatKey, stopTyping]);
+  }, [socket]);
 
-  const typingUserIds =
-    activity?.chatKey === chatKey ? [...new Set(activity.people)] : [];
+  const typingUserIds = typingByChat.get(typingChatKey(chatId, isGroup)) ?? [];
 
-  return { handleTypingChange, typingUserIds };
+  return { handleTypingChange, typingUserIds, typingByChat };
 }
