@@ -1,0 +1,218 @@
+
+/* ==========================================
+   MESSAGE REQUESTS - RESPONSIVE
+========================================== */
+
+.message-requests-button {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  margin: 12px 0;
+
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--surface-color);
+  color: var(--text-color);
+
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.message-requests-button:hover {
+  background: var(--hover-color);
+}
+
+.message-requests-button:focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 2px;
+}
+
+.message-requests-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.message-requests-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.message-requests-copy small {
+  color: var(--muted-text);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.message-requests-count {
+  min-width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 0 6px;
+
+  border-radius: 50px;
+  background: var(--accent-color);
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+/* ==========================================
+   SCROLLABLE MESSAGE REQUESTS CONTAINER
+========================================== */
+
+.message-requests-scroll {
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-height: 100%;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color) transparent;
+}
+
+/* ==========================================
+   MOBILE DEVICES
+========================================== */
+
+@media (max-width: 600px) {
+  .message-requests-button {
+    gap: 10px;
+    padding: 10px;
+    margin: 8px 0;
+  }
+
+  .message-requests-copy small {
+    font-size: 11px;
+  }
+
+  .message-requests-scroll {
+    max-height: 65dvh;
+  }
+}
+
+/* ==========================================
+   TABLETS
+========================================== */
+
+@media (min-width: 601px) and (max-width: 1024px) {
+  .message-requests-scroll {
+    max-height: 70dvh;
+  }
+}
+
+/* ==========================================
+   DESKTOP
+========================================== */
+
+@media (min-width: 1025px) {
+  .message-requests-scroll {
+    max-height: 75dvh;
+  }
+}
+
+
+/* ==========================================
+   RESPONSIVE SIDEBAR SCROLLING
+========================================== */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  max-height: 100dvh;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Keep header, profile, search and filters visible */
+.brand-row,
+.profile-strip,
+.section-heading,
+.search-box,
+.chat-filters {
+  flex-shrink: 0;
+}
+
+/* Scroll conversations independently */
+.conversation-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-color, #ccc) transparent;
+}
+
+/* Prevent long names and messages from widening sidebar */
+.conversation {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.conversation-copy,
+.conversation-top,
+.conversation-bottom,
+.last-message {
+  min-width: 0;
+}
+
+.conversation-top strong,
+.last-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Keep footer below the scrolling list */
+.sidebar-footer {
+  flex-shrink: 0;
+}
+
+/* Mobile devices */
+@media (max-width: 600px) {
+  .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+  }
+
+  .conversation-list {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+}
+
+/* Tablets */
+@media (min-width: 601px) and (max-width: 1024px) {
+  .sidebar {
+    max-height: 100dvh;
+  }
+}

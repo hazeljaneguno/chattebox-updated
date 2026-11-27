@@ -1,0 +1,13 @@
+/* Chatterbox message styles - import once from MessageList.jsx. */
+/* Base and updated message layouts (newer rules take precedence). */
+@import "./MessageList.css";
+@import "./MessageList1.1.css";
+@import "./MessageBubble.css";
+@import "./MessageActions.css";
+/* Split stylesheets */
+@import "./ReplyComposer.css";
+@import "./MessageLightbox.css";
+@import "./ReplyQuotes.css";
+@import "./ChatBackgrounds.css";
+@import "./MessageOptions.css";
+@import "./GroupCallEvents.css";

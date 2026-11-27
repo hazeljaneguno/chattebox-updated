@@ -1,0 +1,923 @@
+import { useMessageExtras } from "./messageExtras.js";
+
+import { useEffect, useRef, useState } from "react";
+
+import { api, API_URL } from "../api.js";
+import { getAttachmentMediaType, getReplyPreview } from "../utils/messageHelpers.js";
+import { formatChatDate } from "../utils/chatHelpers.js";
+import { sharedMessageLinks } from "../utils/messageLinks.js";
+import {
+  ArrowLeft,
+  UserRound,
+  Search,
+  Bell,
+  BellOff,
+  Palette,
+  Pencil,
+  Images,
+  FileText,
+  Link2,
+  Pin,
+  UserPlus,
+  Volume2,
+  VolumeX,
+  MessageCircle,
+  Download,
+  Share2,
+  Timer,
+  CheckCheck,
+  Keyboard,
+  ShieldCheck,
+  Ban,
+  Flag,
+  UserRoundX,
+  ChevronRight,
+  Save,
+  MoreHorizontal,
+  Trash2,
+} from "lucide-react";
+
+import "./ChatDetails.css";
+
+const sections = [
+  {
+    title: "Customization",
+    items: [
+      ["nicknames", Pencil, "Nicknames"],
+      ["theme", Palette, "Chat theme"],
+    ],
+  },
+  {
+    title: "Chat info",
+    items: [
+      ["media", Images, "Photos and videos"],
+      ["files", FileText, "Shared files"],
+      ["links", Link2, "Shared links"],
+      ["pinned", Pin, "Pinned messages"],
+      ["notifications", Bell, "Notifications & sounds"],
+    ],
+  },
+  {
+    title: "Actions",
+    items: [
+      ["createGroup", UserPlus, "Create group with contact"],
+      ["shareContact", Share2, "Share contact"],
+      ["chatHead", MessageCircle, "Open chat head"],
+    ],
+  },
+  {
+    title: "Privacy & support",
+    items: [
+      ["disappearing", Timer, "Disappearing messages"],
+      ["readReceipts", CheckCheck, "Read receipts"],
+      ["typingIndicator", Keyboard, "Typing indicator"],
+      ["messagePermissions", ShieldCheck, "Message permissions"],
+      ["encryption", ShieldCheck, "Encryption information"],
+      ["restrict", UserRoundX, "Restrict"],
+      ["block", Ban, "Block"],
+      ["report", Flag, "Report"],
+    ],
+  },
+];
+
+const titleMap = {
+  media: "Photos and videos",
+  files: "Shared files",
+  links: "Shared links",
+  pinned: "Pinned messages",
+  nicknames: "Nicknames",
+  members: "Members",
+  addMembers: "Add members",
+  search: "Search conversation",
+  notifications: "Notifications & sounds",
+  customize: "Customize chat",
+};
+
+const internalPages = new Set([
+  "media",
+  "files",
+  "links",
+  "pinned",
+  "nicknames",
+  "members",
+  "search",
+  "notifications",
+  "customize",
+]);
+
+export default function ChatDetails({
+  chat,
+  online = false,
+  showActiveStatus = true,
+  onJumpToMessage,
+  onClose,
+  onAction,
+  currentUserId,
+  onSaveGroupNickname,
+  onFindGroupMembers,
+  onAddGroupMember,
+  onOpenBackgroundPicker,
+  messages = [],
+}) {
+  const [page, setPage] = useState("home");
+  const [nickname, setNickname] = useState("");
+  const [query, setQuery] = useState("");
+  const [submittedQuery, setSubmittedQuery] = useState("");
+  const [notificationSettings, setNotificationSettings] = useState(null);
+  const [savingNotifications, setSavingNotifications] = useState(false);
+  const [notificationError, setNotificationError] = useState("");
+  const muted = notificationSettings?.muted ?? false;
+  const soundsEnabled = notificationSettings?.soundsEnabled ?? true;
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+
+  const moreMenuRef = useRef(null);
+
+  const isGroup = Boolean(chat?.isGroup);
+  const members = Array.isArray(chat?.members) ? chat.members : [];
+  const [nicknameSaving, setNicknameSaving] = useState(false);
+  const [nicknameError, setNicknameError] = useState("");
+  const [memberCandidates, setMemberCandidates] = useState([]);
+  const [memberBusy, setMemberBusy] = useState(false);
+  const [memberError, setMemberError] = useState("");
+  const canAddMembers = currentUserId != null &&
+    String(chat?.creatorId) === String(currentUserId);
+  const [extras,updateExtra] = useMessageExtras(chat?.id??chat?._id);
+  const allMessages = (Array.isArray(messages) ? messages : []).map((m) => ({
+    ...m,
+    ...(extras[String(m.id ?? m._id)] || {}),
+  }));
+
+  const safeUrl = (value) => {
+    if (typeof value !== "string") return null;
+    try {
+      const parsed = new URL(value, window.location.origin);
+      return ["http:", "https:"].includes(parsed.protocol) ? parsed.href : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const attachmentsFor = (message) => {
+    const attachment = message.attachment;
+    if (Array.isArray(attachment)) return attachment;
+    if (attachment && typeof attachment === "object") return [attachment];
+    return Array.isArray(message.attachments) ? message.attachments : [];
+  };
+
+  const visibleMessages = allMessages.filter(
+    (message) => !message.isDeleted && !message.deleted && !message.deletedForEveryone
+  );
+  const searchResults = submittedQuery ? visibleMessages.filter((message) =>
+    [message.text, message.content, ...attachmentsFor(message).map((file) => file.originalName || file.name)]
+      .some((value) => typeof value === "string" && value.toLowerCase().includes(submittedQuery))
+  ).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt)) : [];
+  const shared = ["media", "files", "links", "pinned"].includes(page) ? visibleMessages.flatMap((message) => {
+    if (page === "pinned") return message.isPinned ? [{ message }] : [];
+    if (page === "links") {
+      return sharedMessageLinks(String(message.text || message.content || ""))
+        .map((link) => ({ message, url: link.href }));
+    }
+    return attachmentsFor(message).flatMap((attachment) => {
+      const source = attachment.url || attachment.secure_url || attachment.path;
+      const url = safeUrl(
+        typeof source === "string" && source.startsWith("/uploads/")
+          ? `${API_URL.replace(/\/+$/, "")}${source}`
+          : source
+      );
+      if (!url) return [];
+      const filename = attachment.originalName || attachment.filename || attachment.name || "Shared file";
+      const media = getAttachmentMediaType({
+        mimeType: attachment.mimeType || attachment.mimetype || attachment.type,
+        originalName: filename,
+        url,
+      });
+      const isImage = media === "image";
+      const isVideo = media === "video";
+      const isMedia = isImage || isVideo;
+      if ((page === "media" && isMedia) || (page === "files" && !isMedia)) {
+        return [{ message, attachment, url, filename, isImage, isVideo }];
+      }
+      return [];
+    });
+  }) : [];
+
+  const name =
+    chat?.nickname ||
+    chat?.username ||
+    chat?.name ||
+    "Contact";
+
+  // Reset when switching conversations.
+  useEffect(() => {
+    setPage("home");
+    setNickname("");
+    setNicknameError("");
+    setQuery("");
+    setSubmittedQuery("");
+    setMoreMenuOpen(false);
+  }, [chat?.id]);
+
+  useEffect(() => {
+    if (page !== "notifications" || !chat?.id) return;
+    let active = true;
+    setNotificationError("");
+    api.chatNotifications({ id: chat.id, isGroup })
+      .then((settings) => { if (active) setNotificationSettings(settings); })
+      .catch((error) => { if (active) setNotificationError(error.message); });
+    return () => { active = false; };
+  }, [page, chat?.id, isGroup]);
+
+  async function updateNotifications(changes) {
+    setSavingNotifications(true);
+    setNotificationError("");
+    try {
+      setNotificationSettings(await api.updateChatNotifications(chat, changes));
+    } catch (error) {
+      setNotificationError(error.message);
+    } finally {
+      setSavingNotifications(false);
+    }
+  }
+
+  // Close popup when tapping outside or pressing Escape.
+  useEffect(() => {
+    if (!moreMenuOpen) return;
+
+    const handleOutside = (event) => {
+      if (!moreMenuRef.current?.contains(event.target)) {
+        setMoreMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setMoreMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutside);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [moreMenuOpen]);
+
+  // Escape also returns from subpages.
+  useEffect(() => {
+    if (moreMenuOpen) return;
+
+    const handleEscape = (event) => {
+      if (event.key !== "Escape") return;
+
+      if (page !== "home") {
+        setPage("home");
+      } else {
+        onClose?.();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [page, moreMenuOpen, onClose]);
+
+  if (!chat) return null;
+
+  const send = (action, payload = {}) => {
+    onAction?.(action, {
+      chat,
+      ...payload,
+    });
+  };
+
+  const open = (action) => {
+    setMoreMenuOpen(false);
+
+    if (internalPages.has(action)) {
+      setPage(action);
+      return;
+    }
+
+    if (action === "theme" && onOpenBackgroundPicker) {
+      onOpenBackgroundPicker(chat);
+      return;
+    }
+
+    // Preserve existing action names for App.jsx.
+    send(action);
+  };
+
+  const back = () => {
+    if (moreMenuOpen) {
+      setMoreMenuOpen(false);
+      return;
+    }
+
+    if (page !== "home") {
+      setPage("home");
+      return;
+    }
+
+    onClose?.();
+  };
+
+  const handleMoreAction = (action) => {
+    setMoreMenuOpen(false);
+    send(action);
+  };
+
+  const handleNicknameSubmit = (event) => {
+    event.preventDefault();
+
+    const value = nickname.trim();
+
+    if (!value) return;
+
+    send("saveNickname", {
+      nickname: value,
+    });
+  };
+
+  async function openAddMembers() {
+    setPage("addMembers");
+    setMemberBusy(true);
+    setMemberError("");
+    setMemberCandidates([]);
+    try {
+      setMemberCandidates(await onFindGroupMembers());
+    } catch (error) {
+      setMemberError(error.message || "Could not load people.");
+    } finally {
+      setMemberBusy(false);
+    }
+  }
+
+  async function addMember(memberId) {
+    setMemberBusy(true);
+    setMemberError("");
+    try {
+      await onAddGroupMember(chat, memberId);
+    } catch (error) {
+      setMemberError(error.message || "Could not add member.");
+    } finally {
+      setMemberBusy(false);
+    }
+  }
+
+  function memberProfile(member) {
+    const label = member.nickname || member.username || "Member";
+    const photo = member.profilePicture;
+    const avatar = photo ? safeUrl(photo.startsWith("/uploads/")
+      ? `${API_URL.replace(/\/+$/, "")}${photo}`
+      : photo) : null;
+
+    return (
+      <>
+        <span aria-hidden="true" style={{
+          position: "relative", display: "grid", placeItems: "center",
+          width: 48, height: 48, marginInline: "auto", borderRadius: "50%",
+          overflow: "hidden", background: "#ede8fb", color: "#533a83",
+          fontWeight: 600,
+        }}>
+          {label.charAt(0).toUpperCase()}
+          {avatar && (
+            <img
+              src={avatar}
+              alt=""
+              onError={(event) => { event.currentTarget.hidden = true; }}
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          )}
+        </span>
+        <span style={{ overflowWrap: "anywhere" }}>{label}</span>
+      </>
+    );
+  }
+
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+
+    const value = query.trim();
+
+    if (!value) return;
+
+    setSubmittedQuery(value.toLowerCase());
+  };
+
+  return (
+    <div
+      className="chat-details-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose?.();
+        }
+      }}
+    >
+      <section
+        className="chat-details-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label={
+          page === "home"
+            ? "Conversation information"
+            : titleMap[page] || "Conversation settings"
+        }
+      >
+        {/* =====================================
+            TOP BAR - NO CENTER TITLE
+        ===================================== */}
+
+        <div className="chat-details-topbar">
+          {/* BACK BUTTON */}
+          <button
+            type="button"
+            className="chat-details-top-button"
+            aria-label="Back"
+            title="Back"
+            onClick={back}
+          >
+            <ArrowLeft size={22} />
+          </button>
+
+          {/* THREE DOTS - HOME ONLY */}
+          {page === "home" ? (
+            <div
+              className="messenger-more-wrapper"
+              ref={moreMenuRef}
+            >
+              <button
+                type="button"
+                className="chat-details-top-button messenger-more-trigger"
+                aria-label="More chat options"
+                aria-haspopup="menu"
+                aria-expanded={moreMenuOpen}
+                onClick={() =>
+                  setMoreMenuOpen((previous) => !previous)
+                }
+              >
+                <MoreHorizontal size={23} />
+              </button>
+
+              {moreMenuOpen && (
+                <div
+                  className="messenger-more-popup"
+                  role="menu"
+                >
+                  {!isGroup && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() =>
+                        handleMoreAction("open-chat-head")
+                      }
+                    >
+                      <MessageCircle size={19} />
+                      <span>Open chat head</span>
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() =>
+                      handleMoreAction("delete-conversation")
+                    }
+                  >
+                    <Trash2 size={19} />
+                    <span>Delete conversation</span>
+                  </button>
+
+                  {!isGroup && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() =>
+                        handleMoreAction("block-contact")
+                      }
+                    >
+                      <Ban size={19} />
+                      <span>Block</span>
+                    </button>
+                  )}
+
+                  <div className="messenger-more-divider" />
+
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() =>
+                      handleMoreAction(
+                        "report-technical-problem"
+                      )
+                    }
+                  >
+                    <Flag size={19} />
+                    <span>Report technical problem</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <span
+              className="chat-details-header-spacer"
+              aria-hidden="true"
+            />
+          )}
+        </div>
+
+        {/* =====================================
+            SCROLLABLE CONTENT
+        ===================================== */}
+
+        <div className="chat-details-body" key={page}>
+          {page === "home" ? (
+            <>
+              {/* CENTERED PROFILE */}
+              <div className="chat-details-profile">
+                <div className="chat-details-avatar">
+                  <UserRound size={40} />
+                </div>
+
+                <h2>{name}</h2>
+
+                <p>
+                  {isGroup
+                    ? `${chat.members?.length || 0} members`
+                    : !showActiveStatus
+                      ? "Active status hidden"
+                      : online
+                        ? "● Active now"
+                        : "Offline"}
+                </p>
+              </div>
+
+              {/* FOUR QUICK ACTIONS */}
+              <div className="chat-details-quick">
+                {(isGroup ? [
+                  ["addMembers", UserPlus, "Add"],
+                  ["nicknames", Pencil, "Nicknames"],
+                  ["search", Search, "Search"],
+                  ["customize", Palette, "Customize"],
+                ] : [
+                  ["profile", UserRound, "Profile"],
+                  ["search", Search, "Search"],
+                  [
+                    "notifications",
+                    muted ? BellOff : Bell,
+                    "Mute",
+                  ],
+                  ["customize", Palette, "Customize"],
+                ]).map(([action, Icon, label]) => (
+                  <button
+                    key={action}
+                    type="button"
+                    disabled={action === "addMembers" && (!canAddMembers || !onFindGroupMembers || !onAddGroupMember)}
+                    title={action === "addMembers" && !canAddMembers ? "Only the group creator can add members" : undefined}
+                    onClick={() => action === "addMembers" ? openAddMembers() : open(action)}
+                  >
+                    <span>
+                      <Icon size={21} />
+                    </span>
+
+                    <small>{label}</small>
+                  </button>
+                ))}
+              </div>
+
+              {isGroup && (
+                <section className="chat-details-section" aria-label="Group members">
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <h3>Members</h3>
+                    <button className="chat-details-item" style={{ width: "auto" }} type="button" onClick={() => open("members")}>
+                      See all
+                    </button>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8, textAlign: "center" }}>
+                    {members.slice(0, 4).map((member) => (
+                      <div key={member.id ?? member._id} style={{ display: "grid", alignContent: "start", gap: 6 }}>
+                        {memberProfile(member)}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* SETTINGS SECTIONS */}
+              {sections.map((section) => (
+                <div
+                  className="chat-details-section"
+                  key={section.title}
+                >
+                  <h3>{section.title}</h3>
+
+                  {section.items
+                    .filter(([action]) => {
+                      if (!isGroup) return true;
+
+                      return ![
+                        "createGroup",
+                        "shareContact",
+                        "restrict",
+                        "block",
+                        "chatHead",
+                      ].includes(action);
+                    })
+                    .map(([action, Icon, label]) => (
+                      <button
+                        className="chat-details-item"
+                        type="button"
+                        key={action}
+                        onClick={() => open(action)}
+                      >
+                        <Icon size={19} />
+
+                        <span>{label}</span>
+
+                        <ChevronRight size={17} />
+                      </button>
+                    ))}
+                </div>
+              ))}
+            </>
+          ) : page === "notifications" ? (
+            /* NOTIFICATIONS */
+            <div className="chat-details-section">
+              <h3>Conversation preferences</h3>
+
+              <button
+                type="button"
+                className="chat-details-item"
+                disabled={!notificationSettings || savingNotifications}
+                aria-pressed={muted}
+                onClick={() => updateNotifications({ muted: !muted })}
+              >
+                {muted ? (
+                  <BellOff size={19} />
+                ) : (
+                  <Bell size={19} />
+                )}
+
+                <span>
+                  {muted
+                    ? "Unmute notifications"
+                    : "Mute notifications"}
+                </span>
+
+                <ChevronRight size={17} />
+              </button>
+
+              <button
+                type="button"
+                className="chat-details-item"
+                disabled={!notificationSettings || savingNotifications}
+                aria-pressed={soundsEnabled}
+                onClick={() => updateNotifications({ soundsEnabled: !soundsEnabled })}
+              >
+                {soundsEnabled ? (
+                  <Volume2 size={19} />
+                ) : (
+                  <VolumeX size={19} />
+                )}
+
+                <span>
+                  {soundsEnabled
+                    ? "Turn notification sounds off"
+                    : "Turn notification sounds on"}
+                </span>
+
+                <ChevronRight size={17} />
+              </button>
+
+              {notificationError && <p role="alert">{notificationError}</p>}
+              {!notificationSettings && !notificationError && <p role="status">Loading settings…</p>}
+            </div>
+          ) : page === "members" ? (
+            <div className="chat-details-section">
+              {members.map((member) => (
+                <div key={member.id ?? member._id} style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 12, alignItems: "center", marginBlock: 10 }}>
+                  {memberProfile(member)}
+                </div>
+              ))}
+              {members.length === 0 && <p>No members to display.</p>}
+            </div>
+          ) : page === "addMembers" ? (
+            <div className="chat-details-section">
+              {memberBusy && <p role="status">Working…</p>}
+              {memberError && <p role="alert">{memberError}</p>}
+              {memberCandidates.filter((candidate) => !members.some((member) =>
+                String(member.id ?? member._id) === String(candidate.id ?? candidate._id)
+              )).map((candidate) => (
+                <button className="chat-details-item" key={candidate.id ?? candidate._id} type="button" disabled={memberBusy} onClick={() => addMember(candidate.id ?? candidate._id)}>
+                  <UserPlus size={19} />
+                  <span>Add {candidate.username}</span>
+                </button>
+              ))}
+            </div>
+          ) : page === "nicknames" && isGroup ? (
+            <div className="chat-details-section">
+              <h3>Member nicknames</h3>
+              {members.map((member) => {
+                const id = member.id ?? member._id;
+                const isSelf = currentUserId != null && id != null
+                  && String(id) === String(currentUserId);
+
+                return (
+                  <div key={id} style={{ display: "grid", justifyItems: "center", gap: 8, paddingBlock: 12, textAlign: "center" }}>
+                    {memberProfile(member)}
+                    {isSelf && (
+                      <button
+                        type="button"
+                        disabled={nicknameSaving || !onSaveGroupNickname}
+                        onClick={async () => {
+                          const value = window.prompt(
+                            "Your nickname in this group. Leave blank to reset.",
+                            member.nickname || ""
+                          );
+                          if (value === null) return;
+                          if (value.trim().length > 60) {
+                            setNicknameError("Use at most 60 characters.");
+                            return;
+                          }
+                          setNicknameError("");
+                          setNicknameSaving(true);
+                          try {
+                            await onSaveGroupNickname(chat, value.trim());
+                          } catch (error) {
+                            setNicknameError(error.message || "Could not save nickname.");
+                          } finally {
+                            setNicknameSaving(false);
+                          }
+                        }}
+                      >
+                        {nicknameSaving ? "Saving…" : "Set nickname"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {members.length === 0 && <p>No members to display.</p>}
+              {nicknameError && <p role="alert">{nicknameError}</p>}
+            </div>
+          ) : page === "nicknames" ? (
+            /* NICKNAMES */
+            <form
+              className="chat-details-form"
+              onSubmit={handleNicknameSubmit}
+            >
+              <h3>Nicknames</h3>
+
+              <label htmlFor="chat-nickname">
+                Nickname for {name}
+              </label>
+
+              <input
+                id="chat-nickname"
+                value={nickname}
+                onChange={(event) =>
+                  setNickname(event.target.value)
+                }
+                maxLength={60}
+                placeholder="Enter a nickname"
+              />
+
+              <button
+                type="submit"
+                disabled={!nickname.trim()}
+              >
+                <Save size={17} />
+                Save nickname
+              </button>
+            </form>
+          ) : page === "search" ? (
+            /* SEARCH */
+            <form
+              className="chat-details-form"
+              onSubmit={handleSearchSubmit}
+            >
+              <h3>Search conversation</h3>
+
+              <label htmlFor="chat-search">
+                Search messages
+              </label>
+
+              <input
+                id="chat-search"
+                value={query}
+                onChange={(event) =>
+                  setQuery(event.target.value)
+                }
+                placeholder="Search messages"
+              />
+
+              <button
+                type="submit"
+                disabled={!query.trim()}
+              >
+                <Search size={17} />
+                Search
+              </button>
+              {submittedQuery && (
+                <div className="chat-details-shared-list">
+                  {searchResults.length === 0 && <p>No matching messages.</p>}
+                  {searchResults.map((message) => (
+                    <button key={message.id ?? message._id} type="button" className="chat-details-item"
+                      onClick={() => onJumpToMessage?.(message.id ?? message._id)}>
+                      <span>{getReplyPreview(message)}</span>
+                      <time dateTime={message.createdAt}>{formatChatDate(message.createdAt)}</time>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </form>
+          ) : page === "customize" ? (
+            /* CUSTOMIZATION */
+            <div className="chat-details-section">
+              <h3>Customize chat</h3>
+
+              <button
+                type="button"
+                className="chat-details-item"
+                onClick={() => setPage("nicknames")}
+              >
+                <Pencil size={19} />
+                <span>Nicknames</span>
+                <ChevronRight size={17} />
+              </button>
+
+              <button
+                type="button"
+                className="chat-details-item"
+                onClick={() => open("theme")}
+              >
+                <Palette size={19} />
+                <span>Change chat theme</span>
+                <ChevronRight size={17} />
+              </button>
+            </div>
+          ) : (
+            /* SHARED CONTENT */
+            <div className="chat-details-shared">
+              <h3>{titleMap[page] || "Shared content"}</h3>
+              {shared.length === 0 ? (
+                <div className="chat-details-empty">
+                  <p>No {String(titleMap[page] || "shared content").toLowerCase()} yet.</p>
+                </div>
+              ) : page === "media" ? (
+                <div className="chat-details-media-grid">
+                  {shared.map((item, index) => (
+                    <a
+                      key={`${item.message.id ?? item.message._id ?? index}-${index}`}
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Open ${item.filename}`}
+                    >
+                      {item.isVideo ? (
+                        <video src={item.url} preload="metadata" muted playsInline />
+                      ) : (
+                        <img src={item.url} alt={item.filename} loading="lazy" />
+                      )}
+                      {item.isVideo && <span className="chat-details-video-label">Video</span>}
+                    </a>
+                  ))}
+                </div>
+              ) : page === "files" ? (
+                <div className="chat-details-shared-list">
+                  {shared.map((item, index) => (
+                    <a key={index} href={item.url} target="_blank" rel="noopener noreferrer">
+                      <FileText size={20} /> <span>{item.filename}</span>
+                      <Download size={18} />
+                    </a>
+                  ))}
+                </div>
+              ) : page === "links" ? (
+                <div className="chat-details-shared-list">
+                  {shared.map((item, index) => (
+                    <a key={index} href={item.url} target="_blank" rel="noopener noreferrer">
+                      <Link2 size={20} /> <span>{item.url}</span>
+                      <ChevronRight size={18} />
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <div className="chat-details-shared-list">
+                  {shared.map(({ message }, index) => (
+                    <button type="button" className="chat-details-item" key={message.id ?? message._id ?? index}
+                      onClick={() => onJumpToMessage?.(message.id ?? message._id)}>
+                      <Pin size={18} />
+                      <span>{getReplyPreview(message)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+    </div>
+  );
+}

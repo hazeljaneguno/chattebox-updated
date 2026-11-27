@@ -1,0 +1,121 @@
+
+.incoming-group-call-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(12, 10, 24, 0.65);
+  backdrop-filter: blur(8px);
+}
+
+.incoming-group-call-modal {
+  width: 100%;
+  max-width: 390px;
+  padding: 32px 26px;
+  text-align: center;
+  color: var(--text-primary, #fff);
+  background: var(--panel-bg, #211d35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+  animation: incoming-call-appear 0.25s ease;
+}
+
+.incoming-group-call-icon {
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 20px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(135deg, #8b5cf6, #6d45d9);
+  border-radius: 50%;
+}
+
+.incoming-group-call-label {
+  display: block;
+  margin-bottom: 12px;
+  color: #a78bfa;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.incoming-group-call-modal h2 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: 800;
+}
+
+.incoming-group-call-caller {
+  margin: 10px 0;
+  color: var(--text-secondary, #aaa);
+  font-size: 14px;
+}
+
+.incoming-group-call-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 26px;
+  padding: 9px 14px;
+  color: var(--text-secondary, #ccc);
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 30px;
+  font-size: 13px;
+}
+
+.incoming-group-call-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.incoming-group-call-actions button {
+  flex: 1;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: none;
+  border-radius: 13px;
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.incoming-group-call-actions button:hover {
+  transform: translateY(-2px);
+  opacity: 0.9;
+}
+
+.incoming-group-call-decline {
+  background: #e5485d;
+}
+
+.incoming-group-call-answer {
+  background: #16a36a;
+}
+
+@keyframes incoming-call-appear {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 420px) {
+  .incoming-group-call-modal {
+    padding: 27px 19px;
+  }
+}

@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.idea/
+.gradle/
+local.properties
+build/
+release/
+*.jks
+*.keystore
+firebase-service-account.json
+google-services.json
