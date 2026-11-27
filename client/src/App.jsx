@@ -2924,9 +2924,44 @@ if (!user) {
     />
   );
 }
+const currentUserId =
+  user?.id ?? user?._id ?? user?.userId;
 
+const typingUsers = (activeChat?.members || [])
+  .filter((member) => {
+    const memberId = member.id ?? member._id ?? member.userId;
 
+    return (
+      typingUserIds.some((id) => sameId(id, memberId)) &&
+      !sameId(memberId, currentUserId)
+    );
+  });
 
+const displayedTypingUsers = typingUsers.slice(0, 3);
+
+const getTypingName = (member) =>
+  member.nickname ||
+  member.username ||
+  member.name ||
+  "Someone";
+
+const getTypingAvatar = (member) =>
+  member.avatar ||
+  member.profilePicture ||
+  member.profileImage ||
+  member.photo ||
+  "/default-avatar.png";
+
+const typingMessage =
+  typingUsers.length === 1
+    ? `${getTypingName(typingUsers[0])} is typing...`
+    : typingUsers.length === 2
+      ? `${getTypingName(typingUsers[0])} and ${getTypingName(typingUsers[1])} are typing...`
+      : typingUsers.length === 3
+        ? `${getTypingName(typingUsers[0])}, ${getTypingName(typingUsers[1])} and ${getTypingName(typingUsers[2])} are typing...`
+        : typingUsers.length > 3
+          ? `${getTypingName(typingUsers[0])}, ${getTypingName(typingUsers[1])} and ${typingUsers.length - 2} others are typing...`
+          : "";
   // =========================
   // 42. MAIN APPLICATION
   // =========================
@@ -3165,7 +3200,34 @@ onAction={async (action, payload) => {
               onCancel={() => setReplyTo(null)}
             />
 
-            
+{typingUsers.length > 0 && (
+  <div className="typing-indicator">
+    <div className="typing-avatars">
+      {displayedTypingUsers.map((member) => (
+        <img
+          key={String(member.id ?? member._id ?? member.userId)}
+          src={getTypingAvatar(member)}
+          alt={getTypingName(member)}
+          className="typing-avatar"
+          onError={(e) => {
+            e.currentTarget.src = "/default-avatar.png";
+          }}
+        />
+      ))}
+    </div>
+
+    <span className="typing-text">
+      {typingMessage}
+    </span>
+
+    <div className="typing-dots">
+      <span />
+      <span />
+      <span />
+    </div>
+  </div>
+)}
+
 <MessageComposer
   key={`composer:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
   draft={draft}
@@ -3182,16 +3244,7 @@ onAction={async (action, payload) => {
   }
 />
 
-{typingUserIds.length > 0 && (
-  <p
-    role="status"
-    style={{ margin: "4px 12px", fontSize: "0.85rem" }}
-  >
-    {typingUserIds.length > 1
-      ? `${typingUserIds.length} people are typing…`
-      : "Typing…"}
-  </p>
-)}
+
           </>
         ) : (
           /* EMPTY CHAT SCREEN */

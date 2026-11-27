@@ -17,6 +17,73 @@
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
 }
 
+.typing-indicator {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 12px;
+  min-height: 36px;
+}
+
+.typing-avatars {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-left: 2px;
+}
+
+.typing-avatar {
+  width: 27px;
+  height: 27px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--background, white);
+  margin-left: -7px;
+}
+
+.typing-avatar:first-child {
+  margin-left: 0;
+}
+
+.typing-text {
+  font-size: 12px;
+  color: var(--text-secondary, #888);
+}
+
+.typing-dots {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.typing-dots span {
+  width: 5px;
+  height: 5px;
+  background: #999;
+  border-radius: 50%;
+  animation: typingBounce 1s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typingBounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
 .chat-options-menu button {
   display: flex;
   align-items: center;
