@@ -27,7 +27,7 @@ const save = (key, value) => {
 };
 
 export default function MessageActions({
-  mine, menuOpen, onReply, onEdit, onToggleMenu,
+  mine, menuOpen, onReply, onEdit, onToggleMenu, showQuickReply = true,
   onDeleteForYou, onDeleteForEveryone, isImage = false,
   text = "", pinned = false, onAction, onReact,
 }) {
@@ -274,24 +274,26 @@ export default function MessageActions({
   return (
     <div ref={anchorRef} className={actionsClassName}>
 
-<button
-  type="button"
-  className="messenger-quick-reply"
-  title="Reply"
-  aria-label="Reply to message"
-  onClick={(event) => {
-    event.stopPropagation();
-    onReply?.();
-  }}
-  onTouchStart={(event) => event.stopPropagation()}
-  onTouchEnd={(event) => event.stopPropagation()}
-  onContextMenu={(event) => {
-    event.preventDefault();
-    event.stopPropagation();
-  }}
->
-  <Forward size={21} strokeWidth={3} />
-</button>
+      {showQuickReply && (
+        <button
+          type="button"
+          className="messenger-quick-reply"
+          title="Reply"
+          aria-label="Reply to message"
+          onClick={(event) => {
+            event.stopPropagation();
+            onReply?.();
+          }}
+          onTouchStart={(event) => event.stopPropagation()}
+          onTouchEnd={(event) => event.stopPropagation()}
+          onContextMenu={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          }}
+        >
+          <Forward size={21} strokeWidth={3} />
+        </button>
+      )}
 
       {menuOpen && !picker && typeof document !== "undefined" && createPortal(
         <div

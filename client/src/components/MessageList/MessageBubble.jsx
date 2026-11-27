@@ -25,6 +25,13 @@ import {
 } from "../../utils/messageHelpers";
 
 
+const emojiToken = /\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?(?:[\u{E0020}-\u{E007E}]+\u{E007F})?(?:\u200D\p{Extended_Pictographic}\uFE0F?\p{Emoji_Modifier}?)*|\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3/gu;
+
+function isEmojiOnly(text) {
+  const trimmed = text?.trim();
+  return Boolean(trimmed) && !trimmed.replace(emojiToken, "").trim();
+}
+
 // Supports common reaction shapes; adapt this if messageExtras uses a different schema.
 function getReactionBadges(reactions) {
   if (!reactions) return [];
@@ -96,6 +103,7 @@ export default function MessageBubble({
 }) {
   const deleted = message.isDeleted === true;
   const attachment = message.attachment;
+  const emojiOnly = !deleted && !editing && !attachment && isEmojiOnly(message.text);
   const attachmentUrl = getAttachmentUrl(attachment);
   const media = getAttachmentMediaType(attachment);
   const isImage = media === "image";
@@ -230,7 +238,7 @@ export default function MessageBubble({
 
   <div
     className={`message-bubble ${
-      mine ? "bubble-mine" : "bubble-theirs"
+      emojiOnly ? "bubble-emoji-only" : mine ? "bubble-mine" : "bubble-theirs"
     } ${editing ? "bubble-editing" : ""} ${
       deleted ? "bubble-deleted" : ""
     } ${!deleted && message.isPinned ? "bubble-pinned" : ""}`}
@@ -556,6 +564,7 @@ export default function MessageBubble({
       onReact?.(message, emoji)
     }
     menuOpen={menuOpen}
+    showQuickReply={!emojiOnly}
     onReply={onReply}
     onEdit={() => startEditing?.(message)}
     onToggleMenu={onToggleMenu}
