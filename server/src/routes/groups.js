@@ -4,6 +4,7 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { latestGroupMessages } from "../services/conversationActivity.js";
 import Group from "../models/Group.js";
+import GroupCall from "../models/GroupCall.js";
 import GroupMessage from "../models/GroupMessage.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
@@ -220,8 +221,7 @@ router.get("/:groupId/messages", requireAuth, async (req, res, next) => {
   .lean();
 
 const receiptReaders = await loadReceiptReaders(messages);
-res.json({
-  messages: messages.map((message) => ({
+const history = messages.map((message) => ({
     id: message._id.toString(),
     groupId: message.group?.toString() || group._id.toString(),
 
@@ -245,6 +245,7 @@ res.json({
           originalName: message.attachment.originalName,
           mimeType: message.attachment.mimeType,
           size: message.attachment.size,
+          photoBatchId: message.attachment.photoBatchId,
         }
       : null,
 
@@ -259,7 +260,37 @@ res.json({
 createdAt: message.createdAt,
 updatedAt: message.updatedAt,
 ...messageReceipts(message, receiptReaders),
-  })),
+}));
+
+const endedCalls = await GroupCall.find({ group: group._id, status: "ended" })
+  .select("_id host callType startedAt endedAt createdAt")
+  .sort({ startedAt: -1, _id: -1 })
+  .limit(500)
+  .lean();
+
+const endedCallIds = new Set(endedCalls.map((call) => String(call._id)));
+const callEventTypes = new Set(["group_call", "group_call_started", "group_call_ended"]);
+const callHistory = endedCalls.map((call) => ({
+  id: `group-call-${call._id}`,
+  groupId: String(group._id),
+  type: "group_call",
+  callId: String(call._id),
+  callType: call.callType,
+  status: "ended",
+  senderId: String(call.host),
+  startedAt: call.startedAt,
+  endedAt: call.endedAt,
+  createdAt: call.startedAt ?? call.createdAt ?? call.endedAt,
+}));
+
+res.json({
+  messages: [
+    ...history.filter((message) =>
+      !callEventTypes.has(message.type) || !endedCallIds.has(String(message.callId))
+    ),
+    ...callHistory,
+  ].sort((first, second) => new Date(second.createdAt) - new Date(first.createdAt))
+    .slice(0, 500),
 });
 
   } catch (error) {

@@ -114,6 +114,12 @@ export function registerGroupMessageHandlers(io, socket) {
             originalName: attachment.originalName,
             mimeType: attachment.mimeType,
             size: attachment.size,
+            photoBatchId:
+              attachment.mimeType.startsWith("image/") &&
+              typeof attachment.photoBatchId === "string" &&
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(attachment.photoBatchId)
+                ? attachment.photoBatchId
+                : undefined,
           },
         }),
       });

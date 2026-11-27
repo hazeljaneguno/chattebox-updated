@@ -714,12 +714,18 @@ function getSenderDisplayName(message) {
 
   function isStackablePhoto(message) {
     return Boolean(
-      message && !message.isDeleted && !message.text?.trim() &&
+      message?.attachment?.photoBatchId && !message.isDeleted && !message.text?.trim() &&
       !getReplyTarget(message) &&
       !sameId(editingMessageId, getMessageId(message)) &&
       getAttachmentMediaType(message.attachment) === "image" &&
       getAttachmentUrl(message.attachment)
     );
+  }
+
+  function samePhotoBatch(first, second) {
+    return isStackablePhoto(first) && isStackablePhoto(second) &&
+      first.attachment.photoBatchId === second.attachment.photoBatchId &&
+      sameId(getSenderId(first), getSenderId(second));
   }
 
   const orderedMessages = safeMessages.filter(Boolean);
@@ -731,12 +737,7 @@ function getSenderDisplayName(message) {
     let end = start + 1;
     if (isStackablePhoto(first)) {
       while (
-        isStackablePhoto(orderedMessages[end]) &&
-        sameId(getSenderId(first), getSenderId(orderedMessages[end])) &&
-        !startsMessageBatch(
-          new Date(orderedMessages[end].createdAt),
-          new Date(orderedMessages[end - 1].createdAt)
-        )
+        samePhotoBatch(first, orderedMessages[end])
       ) end += 1;
     }
     if (end - start >= 4) {
@@ -780,9 +781,7 @@ function getSenderDisplayName(message) {
             timestamp,
             previousTimestamp ? new Date(previousTimestamp) : null
           );
-          const followsPhoto = !startsBatch && isStackablePhoto(message) &&
-            isStackablePhoto(previousMessage) &&
-            sameId(getSenderId(previousMessage), getSenderId(message));
+          const followsPhoto = !startsBatch && samePhotoBatch(message, previousMessage);
           photoRunIndex = followsPhoto ? photoRunIndex + 1 : 0;
           const separator = startsBatch && (
             <time className="message-batch-time" dateTime={timestamp.toISOString()}>
@@ -960,6 +959,7 @@ function getSenderDisplayName(message) {
                   message={message}
                   mine={mine}
                   readers={readers}
+                  reactionMembers={isGroup ? activeChat?.members ?? [] : [activeChat]}
                   onReact={onReact}
                   onMessageAction={onMessageAction}
                   user={user}

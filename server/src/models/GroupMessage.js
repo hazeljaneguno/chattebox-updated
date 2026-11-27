@@ -134,6 +134,7 @@ const groupMessageSchema = new mongoose.Schema(
     },
 
     attachment: {
+      photoBatchId: { type: String, maxlength: 36 },
       url: {
         type: String,
         default: "",

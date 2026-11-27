@@ -38,7 +38,7 @@ export default function useMessageActions({
   }, [setReplyTo, inputRef]);
 
   // Send private and group messages.
-  const sendMessage = useCallback(async (event, selectedFile = null, { focusInput = true, textOverride, includeReply = true } = {}) => {
+  const sendMessage = useCallback(async (event, selectedFile = null, { focusInput = true, textOverride, includeReply = true, photoBatchId } = {}) => {
     event.preventDefault();
 
     const text = (textOverride ?? draft).trim();
@@ -91,6 +91,8 @@ export default function useMessageActions({
           throw new Error("The server did not return the uploaded file.");
         }
       }
+
+      if (attachment && photoBatchId) attachment = { ...attachment, photoBatchId };
 
       const replyMessageId = includeReply && replyTo
         ? replyTo.id ?? replyTo._id ?? null

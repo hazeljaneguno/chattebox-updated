@@ -128,18 +128,12 @@ io.to(`group-call:${callId}`).emit(
       }
 
       await call.save();
-      await sendGroupCallNotification(group.members, { callId, groupId, groupName: group.name, callerId: userId, callType: call.callType, action: "ended" });
-
-      try {
-        await getRoomService().deleteRoom(call.roomName);
-      } catch (roomError) {
-        console.error("LiveKit room deletion error:", roomError);
-      }
-
       const endedData = {
         callId,
         groupId,
         endedBy: userId,
+        callType: call.callType,
+        startedAt: call.startedAt,
         endedAt: call.endedAt,
       };
 
@@ -150,7 +144,19 @@ io.to(`group-call:${callId}`).emit(
         endedData
       );
 
-      return callback?.({ ok: true });
+      callback?.({ ok: true });
+
+      await sendGroupCallNotification(group.members, { callId, groupId, groupName: group.name, callerId: userId, callType: call.callType, action: "ended" }).catch((error) => {
+        console.error("Group call end notification error:", error);
+      });
+
+      try {
+        await getRoomService().deleteRoom(call.roomName);
+      } catch (roomError) {
+        console.error("LiveKit room deletion error:", roomError);
+      }
+      return;
+
 
     } catch (error) {
       console.error("Group call end error:", error);

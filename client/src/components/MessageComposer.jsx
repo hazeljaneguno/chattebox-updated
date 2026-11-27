@@ -99,13 +99,18 @@ onTypingChange?.(false);
     setSending(true);
     setFileError("");
     try {
-      const queue = attachments.length ? attachments : [{ file: null }];
+      const photoBatchId = attachments.length > 1 ? crypto.randomUUID() : undefined;
+      const queue = attachments.length
+        ? attachments.map((item) => item.photoBatchId || !photoBatchId ? item : { ...item, photoBatchId })
+        : [{ file: null }];
+      if (attachments.length) setAttachments(queue);
       for (const [index, item] of queue.entries()) {
         const attachment = await preparePhoto(item.file, hd);
         await sendMessage(event, attachment, {
           focusInput: index === queue.length - 1 && !galleryOpen && !like,
           textOverride: index === 0 ? (like ? "👍" : draft) : "",
           includeReply: index === 0,
+          photoBatchId: item.photoBatchId,
         });
         setAttachments((current) => current.filter((entry) => entry !== item));
       }

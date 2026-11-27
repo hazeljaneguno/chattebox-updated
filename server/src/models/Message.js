@@ -114,6 +114,7 @@ const messageSchema = new Schema(
 
     // Attachments
     attachment: {
+      photoBatchId: { type: String, maxlength: 36 },
       url: {
         type: String,
         default: null,

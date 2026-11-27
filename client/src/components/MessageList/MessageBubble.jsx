@@ -75,6 +75,7 @@ export default function MessageBubble({
   message,
   mine,
   readers = [],
+  reactionMembers = [],
   user,
   isGroup = false,
   loggedInUserId,
@@ -428,7 +429,7 @@ export default function MessageBubble({
         style={{ pointerEvents: "auto" }}
         onClick={(event) => {
           event.stopPropagation();
-          setSelectedReaction(emoji);
+          setSelectedReaction(null);
           reactionDialogRef.current?.showModal();
         }}
         aria-haspopup="dialog"
@@ -451,92 +452,47 @@ export default function MessageBubble({
                 event.currentTarget.close();
               }
             }}
-            style={{
-              position: "fixed",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              maxWidth: "none",
-              maxHeight: "none",
-              margin: 0,
-              padding: 0,
-              border: 0,
-              background: "rgb(16 20 32 / 40%)",
-              pointerEvents: "auto",
-              boxSizing: "border-box",
-            }}
           >
-            <section style={{
-              position: "absolute",
-              inset: "auto 0 0",
-              width: "min(100%, 440px)",
-              marginInline: "auto",
-              boxSizing: "border-box",
-              padding: "16px 18px calc(16px + env(safe-area-inset-bottom))",
-              borderRadius: "24px 24px 0 0",
-              background: "#fff",
-              color: "#20232b",
-            }}>
-              <header style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}>
-                <h3 style={{ margin: 0 }}>Reactions</h3>
-                <button
-                  type="button"
-                  aria-label="Close reactions"
-                  onClick={() => reactionDialogRef.current?.close()}
-                  style={{
-                    minWidth: 44, minHeight: 44, border: 0, borderRadius: 12,
-                    background: "#f2f3f7", color: "inherit", fontSize: 22,
-                  }}
-                >
-                  ×
+            <section className="reaction-sheet-panel">
+              <header className="reaction-sheet-header">
+                <h3>Reactions</h3>
+                <button type="button" aria-label="Close reactions"
+                  onClick={() => reactionDialogRef.current?.close()}>
+                  <X size={18} aria-hidden="true" />
                 </button>
               </header>
 
-              <div role="group" aria-label="Filter reactions" style={{
-                display: "flex", gap: 8, overflowX: "auto", marginBlock: 12,
-              }}>
+              <ul className="reaction-sheet-people">
+                {visibleReactions.map(({ userId, username, emoji, profilePicture }) => {
+                  const member = [user, ...reactionMembers].find((person) =>
+                    sameId(person?.userId ?? person?.id ?? person?._id, userId)
+                  );
+                  const name = username || member?.username || member?.name || "User";
+                  const photo = profilePicture || member?.profilePicture;
+                  return (
+                    <li key={`${userId}-${emoji}`}>
+                      <span className="reaction-sheet-avatar" aria-hidden="true">
+                        {initials(name)}
+                        {photo && <img src={getAttachmentUrl({ url: photo })} alt=""
+                          onError={(event) => { event.currentTarget.hidden = true; }} />}
+                      </span>
+                      <span className="reaction-sheet-name">{name}</span>
+                      <span className="reaction-sheet-emoji">{emoji}</span>
+                    </li>
+                  );
+                })}
+                {visibleReactions.length === 0 && <li>No names available for this reaction.</li>}
+              </ul>
+
+              <div className="reaction-sheet-filters" role="group" aria-label="Filter reactions">
                 {reactionFilters.map(({ emoji, label, count }) => (
-                  <button
-                    key={emoji ?? "all"}
-                    type="button"
+                  <button key={emoji ?? "all"} type="button"
                     aria-pressed={selectedReaction === emoji}
-                    onClick={() => setSelectedReaction(emoji)}
-                    style={{
-                      flexShrink: 0,
-                      minHeight: 44,
-                      paddingInline: 12,
-                      border: 0,
-                      borderRadius: 12,
-                      background: selectedReaction === emoji ? "#e9e2ff" : "#f2f3f7",
-                      color: selectedReaction === emoji ? "#513494" : "inherit",
-                    }}
-                  >
-                    {label} {count}
+                    onClick={() => setSelectedReaction(emoji)}>
+                    {emoji ? `${label} ${count}` : "All"}
                   </button>
                 ))}
               </div>
-
-              <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: "40vh", overflowY: "auto" }}>
-                {visibleReactions.map(({ userId, username, emoji }) => (
-                  <li key={`${userId}-${emoji}`} style={{
-                    display: "flex", alignItems: "center", gap: 12, minHeight: 48,
-                  }}>
-                    <span aria-hidden="true" style={{
-                      display: "grid", placeItems: "center", width: 36, height: 36,
-                      flexShrink: 0, borderRadius: "50%", background: "#f0ecfa",
-                    }}>
-                      {(username || "User").charAt(0).toUpperCase()}
-                    </span>
-                    <span>{username || "User"}</span>
-                    <span style={{ marginInlineStart: "auto" }}>{emoji}</span>
-                  </li>
-                ))}
-                {visibleReactions.length === 0 && <li>No names available for this reaction.</li>}
-              </ul>
             </section>
           </dialog>
         )}
