@@ -41,7 +41,7 @@ import {
 
 import { api, connectSocket } from "./api.js";
 import { latestChatMessage, messageTimestamp, sameId } from "./utils/chatHelpers.js";
-
+import useTypingIndicator from "./hooks/useTypingIndicator.js";
 import useMessageActions from "./hooks/useMessageActions.js";
 import useChatMessages from "./hooks/useChatMessages.js";
 import useChatSocket from "./hooks/useChatSocket.js";
@@ -258,6 +258,7 @@ const [messageJump, setMessageJump] = useState(null);
   const handledCallActionsRef = useRef(new Set());
 
 const [callMessageNotifications, setCallMessageNotifications] = useState({});  
+
   // =========================
   // 11. ACTIVE CHAT
   // =========================
@@ -363,6 +364,10 @@ const {
   joinGroupCall,
   leaveGroupCall,
 } = useGroupCall();
+
+const { handleTypingChange, typingUserIds } =
+  useTypingIndicator(socket, activeChat);
+
   // =========================
   // 13. NOTIFICATION HANDLER
   // =========================
@@ -3160,21 +3165,33 @@ onAction={async (action, payload) => {
               onCancel={() => setReplyTo(null)}
             />
 
-            {/* MESSAGE COMPOSER */}
-            <MessageComposer
-              key={`composer:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
-              draft={draft}
-              setDraft={setDraft}
-              inputRef={inputRef}
-              sendMessage={sendMessage}
-              showNotice={showNotice}
-              socketStatus={socketStatus}
-              mentionUsers={
-                activeChat.isGroup
-                  ? activeChat.members || []
-                  : []
-              }
-            />
+            
+<MessageComposer
+  key={`composer:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
+  draft={draft}
+  setDraft={setDraft}
+  onTypingChange={handleTypingChange}
+  inputRef={inputRef}
+  sendMessage={sendMessage}
+  showNotice={showNotice}
+  socketStatus={socketStatus}
+  mentionUsers={
+    activeChat.isGroup
+      ? activeChat.members || []
+      : []
+  }
+/>
+
+{typingUserIds.length > 0 && (
+  <p
+    role="status"
+    style={{ margin: "4px 12px", fontSize: "0.85rem" }}
+  >
+    {typingUserIds.length > 1
+      ? `${typingUserIds.length} people are typing…`
+      : "Typing…"}
+  </p>
+)}
           </>
         ) : (
           /* EMPTY CHAT SCREEN */

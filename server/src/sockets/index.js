@@ -12,13 +12,14 @@ import { registerPresenceHandlers } from "./presenceHandlers.js";
 import { registerGroupCallHandlers } from "./groupCallHandlers.js";
 
 import { registerMessageReceiptHandlers } from "./messageReceiptHandlers.js";
+import { registerTypingHandlers } from "./typingHandlers.js";
 
 export function registerSocketHandlers(io) {
   io.on("connection", (socket) => {
     const userId = String(socket.user.id);
 
-    // Every authenticated user joins their personal room.
-    socket.join(`user:${userId}`);
+socket.join(`user:${userId}`);
+registerTypingHandlers(io, socket);
 
     // =====================================
     // PRESENCE

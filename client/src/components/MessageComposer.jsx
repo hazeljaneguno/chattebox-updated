@@ -21,6 +21,7 @@ export default function MessageComposer({
   inputRef,
   sendMessage,
   socketStatus,
+  onTypingChange,
 }) {
   const fileInputRef = useRef(null);
   const photoInputRef = useRef(null);
@@ -77,9 +78,10 @@ export default function MessageComposer({
 
   async function handleSubmit(event, like = false) {
     event.preventDefault();
-    if (submittingRef.current || busy || socketStatus !== "connected") return;
-    if (!hasDraft && !like) return;
+if (submittingRef.current || busy || socketStatus !== "connected") return;
+if (!hasDraft && !like) return;
 
+onTypingChange?.(false);
     submittingRef.current = true;
     setSending(true);
     setFileError("");
@@ -99,6 +101,10 @@ export default function MessageComposer({
     }
   }
 
+function handleDraftChange(nextDraft) {
+  setDraft(nextDraft);
+  onTypingChange?.(Boolean(nextDraft.trim()));
+}
   function openPhotos() {
     if (!hasNativePhotoGrid) {
       photoInputRef.current?.click();
@@ -115,7 +121,7 @@ export default function MessageComposer({
     const end = input?.selectionEnd ?? start;
     const next = draft.slice(0, start) + emoji + draft.slice(end);
     if (next.length > 4000) return;
-    setDraft(next);
+    handleDraftChange(next);
     input?.focus();
     requestAnimationFrame(() => input?.setSelectionRange(start + emoji.length, start + emoji.length));
   }
@@ -170,8 +176,16 @@ export default function MessageComposer({
         </button>
 
         <div className="composer-entry">
-          <input ref={inputRef} value={draft} onChange={(event) => setDraft(event.target.value)}
-            placeholder="Message…" aria-label="Write a message" readOnly={sending} maxLength={4000} />
+          <input
+  ref={inputRef}
+  value={draft}
+  onChange={(event) => handleDraftChange(event.target.value)}
+  onBlur={() => onTypingChange?.(false)}
+  placeholder="Message…"
+  aria-label="Write a message"
+  readOnly={sending}
+  maxLength={4000}
+/>
           <button type="button" className="composer-tool composer-emoji-button" aria-label="Emoji picker"
             aria-expanded={emojiOpen} disabled={busy} onMouseDown={(event) => event.preventDefault()}
             onClick={toggleEmoji}>
