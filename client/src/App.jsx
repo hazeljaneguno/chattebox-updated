@@ -3026,7 +3026,7 @@ if (!user) {
 
 {showChatDetails && activeChat && (
   <ChatDetails
-    key={`${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
+    key={`details:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
     chat={activeChat}
     onJumpToMessage={(id) => {
       setMessageJump({ id, chatId: activeChat.id });
@@ -3176,7 +3176,7 @@ onAction={async (action, payload) => {
 
             {/* MESSAGE COMPOSER */}
             <MessageComposer
-              key={`${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
+              key={`composer:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
               draft={draft}
               setDraft={setDraft}
               inputRef={inputRef}
