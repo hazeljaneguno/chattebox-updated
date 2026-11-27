@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 
 import { createPortal } from "react-dom";
-
+import Avatar from "./components/Avatar.jsx";
 import AuthScreen from "./components/AuthScreen.jsx";
 import ChatSidebar from "./components/ChatSidebar.jsx";
 import ChatHeader from "./components/ChatHeader.jsx";
@@ -3202,20 +3202,14 @@ onAction={async (action, payload) => {
 
 {typingUsers.length > 0 && (
   <div className="typing-indicator">
-    <div className="typing-avatars">
-      {displayedTypingUsers.map((member) => (
-        <img
-          key={String(member.id ?? member._id ?? member.userId)}
-          src={getTypingAvatar(member)}
-          alt={getTypingName(member)}
-          className="typing-avatar"
-          onError={(e) => {
-            e.currentTarget.src = "/default-avatar.png";
-          }}
-        />
-      ))}
-    </div>
-
+<div className="typing-avatars" aria-hidden="true">
+  {displayedTypingUsers.map((member) => (
+    <Avatar
+      key={member.id ?? member._id ?? member.userId}
+      name={member.username || member.name || getTypingName(member)}
+    />
+  ))}
+</div>
     <span className="typing-text">
       {typingMessage}
     </span>
