@@ -597,18 +597,17 @@ export default function MessageBubble({
             {messageTime}
           </span>
 
-          <span
-            className={`read-check ${
-              message.read ? "message-read" : ""
-            }`}
-            title={message.read ? "Read" : "Sent"}
-            aria-label={message.read ? "Read" : "Sent"}
-          >
-            {message.read ? (
-              <CheckCheck size={15} />
-            ) : (
-              <Check size={15} />
-            )}
+          <span className="read-check" aria-hidden="true">
+            {message.read || message.readBy?.length || message.deliveredTo?.length
+              ? <CheckCheck size={15} />
+              : <Check size={15} />}
+          </span>
+          <span className="message-receipt-label">
+            {message.read || message.readBy?.length
+              ? "Seen"
+              : message.deliveredTo?.length
+                ? "Delivered"
+                : "Sent"}
           </span>
         </div>
       )}

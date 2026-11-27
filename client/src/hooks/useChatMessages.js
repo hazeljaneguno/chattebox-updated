@@ -12,12 +12,40 @@ export default function useChatMessages({
   useEffect(() => {
     if (!socket || !user) return;
 
+    function acknowledgeDelivery(message, event) {
+      if (!message.id || !message.senderId || sameId(message.senderId, user.id)) return;
+      if (message.isDeleted || (message.type && !["text", "image", "audio", "video", "file"].includes(message.type))) return;
+      socket.emit(event, { messageId: message.id, status: "delivered" });
+    }
+
+    function handleReceipt({ messageId, groupId, deliveredTo, readBy } = {}) {
+      if (!messageId || !Array.isArray(deliveredTo)) return;
+
+      setChats((previous) => previous.map((chat) => {
+        if (groupId ? !chat.isGroup || !sameId(chat.id, groupId) : chat.isGroup) return chat;
+        if (!chat.messages?.some((message) => sameId(message.id, messageId))) return chat;
+        return {
+          ...chat,
+          messages: chat.messages.map((message) => sameId(message.id, messageId)
+            ? {
+                ...message,
+                deliveredTo: deliveredTo.length >= (message.deliveredTo?.length ?? 0)
+                  ? deliveredTo
+                  : message.deliveredTo,
+                read: Boolean(message.read || readBy?.length),
+              }
+            : message),
+        };
+      }));
+    }
+
     function handleDirectMessage(message) {
       const otherId = sameId(message.senderId, user.id)
         ? message.recipientId
         : message.senderId;
 
       if (!otherId) return;
+      acknowledgeDelivery(message, "message:receipt");
       const isActive = sameId(activeIdRef.current, otherId);
       const isOwnMessage = sameId(message.senderId, user.id);
 
@@ -46,6 +74,7 @@ export default function useChatMessages({
     }
 
     function handleGroupMessage(message) {
+      acknowledgeDelivery(message, "group:message:receipt");
       setChats((previous) =>
         previous.map((chat) => {
           if (!chat.isGroup || !sameId(chat.id, message.groupId)) {
@@ -112,12 +141,16 @@ export default function useChatMessages({
     socket.on("message:new", handleDirectMessage);
     socket.on("group:message:new", handleGroupMessage);
     socket.on("message:updated", handleMessageUpdated);
+    socket.on("message:receipt", handleReceipt);
+    socket.on("group:message:receipt", handleReceipt);
     socket.on("presence:update", handlePresenceUpdate);
 
     return () => {
       socket.off("message:new", handleDirectMessage);
       socket.off("group:message:new", handleGroupMessage);
       socket.off("message:updated", handleMessageUpdated);
+      socket.off("message:receipt", handleReceipt);
+      socket.off("group:message:receipt", handleReceipt);
       socket.off("presence:update", handlePresenceUpdate);
     };
   }, [socket, user, activeIdRef, setChats, setOnlineIds]);
