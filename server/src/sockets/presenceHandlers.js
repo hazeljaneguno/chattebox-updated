@@ -1,58 +1,67 @@
-
 import User from "../models/User.js";
 
-export function registerPresenceHandlers(io, socket) {
-  const userId = String(socket.user.id);
-  const userRoom = `user:${userId}`;
+const presenceRoom = "presence:visible";
 
-  // Remember which account owns this socket connection.
-  socket.data.userId = userId;
+function sendSnapshot(io, socket) {
+  const connected = io.sockets.adapter.rooms.get(presenceRoom) ?? [];
+  const onlineIds = new Set();
 
-  async function announceOnline() {
-    try {
-      const user = await User.findById(userId).select(
-        "username activeStatus"
-      );
-
-      if (!user || !user.activeStatus) return;
-
-      // Tell other connected users that this user is online.
-      socket.broadcast.emit("presence:update", {
-        userId,
-        username: user.username,
-        isOnline: true,
-        lastSeen: null,
-      });
-    } catch (error) {
-      console.error("Presence online error:", error);
+  if (socket.rooms.has(presenceRoom)) {
+    for (const socketId of connected) {
+      const userId = io.sockets.sockets.get(socketId)?.user.id;
+      if (userId && userId !== socket.user.id) onlineIds.add(userId);
     }
   }
 
-  announceOnline();
+  socket.emit("presence:snapshot", [...onlineIds]);
+}
 
-  socket.on("disconnect", async () => {
-    try {
-      // Check whether this user still has another connected device or tab.
-      const remainingSockets = await io.in(userRoom).fetchSockets();
+export function updatePresenceVisibility(io, userId, enabled) {
+  const accountRoom = `user:${userId}`;
+  const socketIds = io.sockets.adapter.rooms.get(accountRoom) ?? [];
 
-      if (remainingSockets.length > 0) return;
+  for (const socketId of socketIds) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) continue;
+    socket.user.showActiveStatus = enabled;
+    if (enabled) socket.join(presenceRoom);
+    else socket.leave(presenceRoom);
+    socket.emit("presence:visibility", enabled);
+    sendSnapshot(io, socket);
+  }
 
-      const user = await User.findByIdAndUpdate(
-        userId,
-        { lastSeen: new Date() },
-        { new: true }
-      ).select("username activeStatus lastSeen");
+  io.to(presenceRoom).except(accountRoom).emit("presence:update", {
+    userId,
+    isOnline: enabled && socketIds.size > 0,
+  });
+}
 
-      if (!user || !user.activeStatus) return;
+export function registerPresenceHandlers(io, socket) {
+  const userId = socket.user.id;
+  const accountRoom = `user:${userId}`;
 
-      io.emit("presence:update", {
-        userId,
-        username: user.username,
-        isOnline: false,
-        lastSeen: user.lastSeen,
-      });
-    } catch (error) {
-      console.error("Presence offline error:", error);
+  if (socket.user.showActiveStatus) {
+    socket.join(presenceRoom);
+    socket.to(presenceRoom).except(accountRoom).emit("presence:update", {
+      userId,
+      isOnline: true,
+    });
+  }
+
+  socket.on("presence:request", () => {
+    socket.emit("presence:visibility", socket.user.showActiveStatus);
+    sendSnapshot(io, socket);
+  });
+
+  socket.on("disconnect", () => {
+    if (io.sockets.adapter.rooms.has(accountRoom)) return;
+
+    if (socket.user.showActiveStatus) {
+      io.to(presenceRoom).emit("presence:update", { userId, isOnline: false });
     }
+
+    User.updateOne({ _id: userId }, { lastSeen: new Date() }).catch((error) => {
+      console.error("Could not save last seen:", error);
+    });
   });
 }

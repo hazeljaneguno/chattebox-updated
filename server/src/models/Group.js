@@ -22,6 +22,11 @@ const groupSchema = new mongoose.Schema(
 },
     profilePicture: { type: String, default: "" },
     admins: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+    memberAddPolicy: {
+      type: String,
+      enum: ["admins", "members"],
+      default: "admins",
+    },
     members: [
       {
         type: mongoose.Schema.Types.ObjectId,

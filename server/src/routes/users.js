@@ -4,6 +4,8 @@ import { latestPrivateMessages } from "../services/conversationActivity.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
+import { updatePresenceVisibility } from "../sockets/presenceHandlers.js";
+
 const router = Router();
 
 // ==========================================
@@ -223,6 +225,8 @@ router.patch("/active-status", requireAuth, async (req, res) => {
         message: "User not found.",
       });
     }
+
+    updatePresenceVisibility(req.app.get("io"), String(user._id), user.showActiveStatus);
 
     return res.json({
       message: "Active status visibility updated.",

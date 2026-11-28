@@ -34,6 +34,7 @@ function publicUser(user) {
     email: user.email,
     role: user.role || "member",
     theme: user.theme || "light",
+    showActiveStatus: user.showActiveStatus !== false,
   };
 }
 
@@ -145,7 +146,7 @@ router.post("/login", async (req, res) => {
         { usernameLower: login },
       ],
     }).select(
-      "+passwordHash username email usernameLower role theme"
+      "+passwordHash username email usernameLower role theme profilePicture showActiveStatus"
     );
 
     if (

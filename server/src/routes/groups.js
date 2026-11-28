@@ -20,7 +20,8 @@ function groupSummary(group) {
     creatorId: String(group.creator),
     background: group.background || "default",
     profilePicture: group.profilePicture || "",
-    adminIds: (group.admins || []).map(String),
+    adminIds: [...new Set([group.creator, ...(group.admins || [])].map(String))],
+    memberAddPolicy: group.memberAddPolicy ?? "admins",
     members: group.members.map((member) => ({
       id: String(member._id),
       username: member.username,
@@ -113,7 +114,11 @@ router.delete("/:groupId", requireAuth, async (req, res, next) => {
 router.post("/", requireAuth, async (req, res, next) => {
   try {
     const name = String(req.body?.name || "").trim();
-    const requestedMembers = req.body?.memberIds;
+    const { memberIds: requestedMembers, memberAddPolicy = "admins" } = req.body ?? {};
+
+    if (!["admins", "members"].includes(memberAddPolicy)) {
+      return res.status(400).json({ message: "Choose who can add members." });
+    }
 
     if (name.length < 2 || name.length > 50) {
       return res.status(400).json({
@@ -159,6 +164,7 @@ router.post("/", requireAuth, async (req, res, next) => {
     const group = await Group.create({
       name,
       creator: req.user._id,
+      memberAddPolicy,
       members: memberIds,
     });
 
@@ -324,7 +330,11 @@ router.patch("/:groupId/members", requireAuth, async (req, res, next) => {
     const permission = {
       _id: groupId,
       members: req.user._id,
-      $or: [{ creator: req.user._id }, { admins: req.user._id }],
+      $or: [
+        { creator: req.user._id },
+        { admins: req.user._id },
+        { memberAddPolicy: "members" },
+      ],
     };
     const group = await Group.findOne(permission).lean();
 
@@ -396,6 +406,28 @@ router.patch("/:groupId/members", requireAuth, async (req, res, next) => {
     }
 
     return res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:groupId/member-add-policy", requireAuth, async (req, res, next) => {
+  try {
+    const { groupId } = req.params;
+    const { memberAddPolicy } = req.body ?? {};
+    if (!mongoose.isValidObjectId(groupId) || !["admins", "members"].includes(memberAddPolicy)) {
+      return res.status(400).json({ message: "Choose a valid group and who can add members." });
+    }
+
+    const result = await Group.updateOne(
+      { _id: groupId, creator: req.user._id, members: req.user._id },
+      { $set: { memberAddPolicy } }
+    );
+    if (!result.matchedCount) {
+      return res.status(403).json({ message: "Only the group creator can change who adds members." });
+    }
+
+    return res.json(await publishGroupMembers(req.app.get("io"), groupId));
   } catch (error) {
     next(error);
   }

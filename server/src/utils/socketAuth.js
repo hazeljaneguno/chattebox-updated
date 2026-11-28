@@ -31,7 +31,7 @@ export function configureSocketAuth(io) {
       );
 
       const user = await User.findById(payload.userId).select(
-        "_id username email role"
+        "_id username email role showActiveStatus"
       );
 
       if (!user) {
@@ -43,6 +43,7 @@ export function configureSocketAuth(io) {
         username: user.username,
         email: user.email,
         role: user.role || "member",
+        showActiveStatus: user.showActiveStatus !== false,
       };
 
       next();
