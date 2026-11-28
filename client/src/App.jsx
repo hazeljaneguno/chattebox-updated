@@ -184,7 +184,7 @@ const [messageJump, setMessageJump] = useState(null);
   const [socket, setSocket] = useState(null);
 
   const [chatFilter, setChatFilter] = useState("all");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [missedCalls, setMissedCalls] = useState([]);
 
   // =========================
   // 5. GROUP STATE
@@ -880,6 +880,7 @@ function clearCallMessageNotifications(chatId) {
     setSocketStatus,
     setError,
     setMentionToast,
+    setMissedCalls,
   });
 
   // =========================
@@ -2852,7 +2853,8 @@ async function handleLogout() {
 
   // 7. Reset interface state.
   setMobileChatOpen(false);
-  setMenuOpen(false);
+  setMissedCalls([]);
+  setChatFilter("all");
   setShowCreateGroup(false);
   setSelectedMemberIds([]);
   setGroupName("");
@@ -3096,8 +3098,14 @@ const typingMessage =
           onEnableActiveStatus={() => handleActiveStatusChange(true)}
           savingActiveStatus={savingActiveStatus}
           socketStatus={socketStatus}
-          menuOpen={menuOpen}
-          setMenuOpen={setMenuOpen}
+          missedCalls={missedCalls}
+          onCallBack={(call, chat) => {
+            setMissedCalls((previous) => previous.map((item) =>
+              item.id === call.id ? { ...item, read: true } : item
+            ));
+            selectChat(chat);
+            void handleStartCall(chat, call.callType || "audio");
+          }}
           messageRequestCount={messageRequests.length}
           setShowMessageRequests={setShowMessageRequests}
           handleLogout={handleLogout}
@@ -3186,8 +3194,8 @@ const typingMessage =
     }}
     currentUserId={user?.id ?? user?._id ?? user?.userId}
     onFindGroupMembers={findPeopleForGroup}
-    onAddGroupMember={async (chat, memberId) => {
-      const update = await api.addGroupMembers(chat.id ?? chat._id, [memberId]);
+    onAddGroupMembers={async (chat, memberIds) => {
+      const update = await api.addGroupMembers(chat.id ?? chat._id, memberIds);
       applyGroupMembers(update);
     }}
     currentUser={user}

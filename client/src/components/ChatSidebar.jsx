@@ -1,5 +1,9 @@
 import {
   Bell,
+  ChevronRight,
+  MessagesSquare,
+  PhoneMissed,
+  UsersRound,
   LogOut,
   Menu,
   MessageCircle,
@@ -30,8 +34,8 @@ export default function ChatSidebar({
   onEnableActiveStatus,
   savingActiveStatus,
   socketStatus,
-  menuOpen,
-  setMenuOpen,
+  missedCalls,
+  onCallBack,
   messageRequestCount,
   setShowMessageRequests,
   handleLogout,
@@ -45,18 +49,22 @@ export default function ChatSidebar({
   setShowSettings,
 }) {
   const activeTab = chatFilter === "active";
+  const notificationsTab = chatFilter === "notifications";
+  const menuTab = chatFilter === "menu";
+  const messagesTab = !activeTab && !notificationsTab && !menuTab;
+  const title = notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
+  const notificationCount = messageRequestCount + missedCalls.filter((call) => !call.read).length;
+  const profileName = user.displayName || user.name || user.username || "Your account";
   const onlineChats = chats.filter(
     (chat) => !chat.isGroup && onlineIds.has(String(chat.id))
   );
   const unreadCount = chats.reduce((total, chat) => total + (chat.unread || 0), 0);
 
   function openSettings() {
-    setMenuOpen(false);
     setShowSettings(true);
   }
 
   function openCreateGroup() {
-    setMenuOpen(false);
     setError("");
     setSelectedMemberIds([]);
     setGroupName("");
@@ -65,20 +73,20 @@ export default function ChatSidebar({
   }
 
   return (
-    <aside className="sidebar chatterbox-sidebar" aria-label={activeTab ? "People" : "Chats"}>
+    <aside className="sidebar chatterbox-sidebar" aria-label={title}>
       <header className="brand-row">
-        <h1 className="brand-name">{activeTab ? "People" : <>Chatter<span>box</span></>}</h1>
-        <button
+        <h1 className="brand-name">{messagesTab ? <>Chatter<span>box</span></> : title}</h1>
+        {(messagesTab || activeTab) && <button
           type="button"
           className="icon-button"
           aria-label="New chat"
           onClick={() => setShowNewChat(true)}
         >
           <SquarePen size={22} />
-        </button>
+        </button>}
       </header>
 
-      {!activeTab && (
+      {messagesTab && (
         <label className="search-box">
           <Search size={18} />
           <input
@@ -90,7 +98,48 @@ export default function ChatSidebar({
         </label>
       )}
 
-      {activeTab ? (
+      {notificationsTab ? (
+        <SidebarNotifications
+          missedCalls={missedCalls}
+          chats={chats}
+          messageRequestCount={messageRequestCount}
+          onOpenRequests={() => setShowMessageRequests(true)}
+          onCallBack={onCallBack}
+        />
+      ) : menuTab ? (
+        <section className="conversation-list sidebar-page" aria-label="Account and chat actions">
+          <div className="sidebar-page-group">
+            <button type="button" className="sidebar-page-row sidebar-profile-row" onClick={openSettings}>
+              <Avatar name={profileName} photo={user.profilePicture} />
+              <span className="sidebar-page-copy">
+                <strong>{profileName}</strong>
+                {user.username && <small>@{user.username}</small>}
+              </span>
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+            <button type="button" className="sidebar-page-row" onClick={openSettings}>
+              <Settings size={22} aria-hidden="true" /> Settings
+            </button>
+          </div>
+          <div className="sidebar-page-group">
+            <button type="button" className="sidebar-page-row" onClick={() => setChatFilter("groups")}>
+              <Users size={22} aria-hidden="true" /> Group chats
+            </button>
+            <button type="button" className="sidebar-page-row" onClick={() => setShowMessageRequests(true)}>
+              <MessagesSquare size={22} aria-hidden="true" /> Message requests
+              {messageRequestCount > 0 && <span className="sidebar-page-badge">{messageRequestCount}</span>}
+            </button>
+            <button type="button" className="sidebar-page-row" onClick={openCreateGroup}>
+              <UsersRound size={22} aria-hidden="true" /> Create group
+            </button>
+          </div>
+          <div className="sidebar-page-group">
+            <button type="button" className="sidebar-page-row" onClick={handleLogout}>
+              <LogOut size={22} aria-hidden="true" /> Log out
+            </button>
+          </div>
+        </section>
+      ) : activeTab ? (
         <section className="conversation-list people-panel" aria-label="Active contacts">
           <div className="people-status">
             <span aria-hidden="true" className={showActiveStatus ? "is-enabled" : ""} />
@@ -224,30 +273,11 @@ export default function ChatSidebar({
       )}
 
       <div className="sidebar-nav-wrap">
-        {menuOpen && (
-          <div className="floating-menu" id="sidebar-options">
-            <button type="button" onClick={openSettings}><Settings size={17} /> Settings</button>
-            <button type="button" onClick={openCreateGroup}><Users size={17} /> Create group</button>
-            <button
-              type="button"
-              onClick={() => {
-                setMenuOpen(false);
-                handleLogout();
-              }}
-            >
-              <LogOut size={17} /> Log out
-            </button>
-          </div>
-        )}
-
         <nav className="sidebar-nav" aria-label="Chat navigation">
           <button
             type="button"
-            aria-pressed={!activeTab}
-            onClick={() => {
-              setMenuOpen(false);
-              setChatFilter("all");
-            }}
+            aria-pressed={messagesTab}
+            onClick={() => setChatFilter("all")}
           >
             <span className="sidebar-nav-icon">
               <MessageCircle size={21} />
@@ -258,34 +288,28 @@ export default function ChatSidebar({
           <button
             type="button"
             aria-pressed={activeTab}
-            onClick={() => {
-              setMenuOpen(false);
-              setChatFilter("active");
-            }}
+            onClick={() => setChatFilter("active")}
           >
             <span className="sidebar-nav-icon"><Users size={21} /></span>
             <span>People</span>
           </button>
           <button
             type="button"
-            onClick={() => {
-              setMenuOpen(false);
-              setShowMessageRequests(true);
-            }}
+            aria-pressed={notificationsTab}
+            onClick={() => setChatFilter("notifications")}
           >
             <span className="sidebar-nav-icon">
               <Bell size={21} />
-              {messageRequestCount > 0 && (
-                <span className="sidebar-nav-count">{messageRequestCount > 99 ? "99+" : messageRequestCount}</span>
+              {notificationCount > 0 && (
+                <span className="sidebar-nav-count">{notificationCount > 99 ? "99+" : notificationCount}</span>
               )}
             </span>
             <span>Notifications</span>
           </button>
           <button
             type="button"
-            aria-expanded={menuOpen}
-            aria-controls={menuOpen ? "sidebar-options" : undefined}
-            onClick={() => setMenuOpen(!menuOpen)}
+            aria-pressed={menuTab}
+            onClick={() => setChatFilter("menu")}
           >
             <span className="sidebar-nav-icon"><Menu size={21} /></span>
             <span>Menu</span>
@@ -293,5 +317,63 @@ export default function ChatSidebar({
         </nav>
       </div>
     </aside>
+  );
+}
+
+function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onCallBack }) {
+  const today = new Date().toDateString();
+  const todayCalls = [];
+  const earlierCalls = [];
+  for (const call of missedCalls) {
+    const bucket = new Date(call.createdAt).toDateString() === today ? todayCalls : earlierCalls;
+    bucket.push(call);
+  }
+
+  return (
+    <section className="conversation-list sidebar-page sidebar-notifications" aria-label="Recent activity">
+      {[[ "Today", todayCalls ], [ "Earlier", earlierCalls ]].map(([label, calls]) => (
+        calls.length > 0 && (
+          <section className="sidebar-notification-group" key={label}>
+            <h2>{label}</h2>
+            {calls.map((call) => {
+              const chat = chats.find((item) => !item.isGroup && sameId(item.id, call.callerId));
+              const name = chat?.username || chat?.name || "Missed caller";
+              const description = call.callType === "video" ? "Missed video call" :
+                call.callType === "audio" ? "Missed audio call" : "Missed call";
+              return (
+                <div className="sidebar-notification-row" key={call.id}>
+                  <Avatar name={name} photo={chat?.profilePicture} />
+                  <span className="sidebar-page-copy">
+                    <strong>{name}</strong>
+                    <small>{description} · <time dateTime={call.createdAt}>{formatChatDate(call.createdAt)}</time></small>
+                  </span>
+                  {chat && <button type="button" onClick={() => onCallBack(call, chat)}>Call back</button>}
+                  {!call.read && <span className="sidebar-notification-dot" aria-label="Unread" />}
+                </div>
+              );
+            })}
+          </section>
+        )
+      ))}
+      {messageRequestCount > 0 && (
+        <section className="sidebar-notification-group">
+          <h2>Message requests</h2>
+          <div className="sidebar-notification-row">
+            <span className="sidebar-notification-icon"><MessagesSquare size={22} aria-hidden="true" /></span>
+            <span className="sidebar-page-copy">
+              <strong>{messageRequestCount} pending {messageRequestCount === 1 ? "request" : "requests"}</strong>
+            </span>
+            <button type="button" onClick={onOpenRequests}>Review</button>
+          </div>
+        </section>
+      )}
+      {!missedCalls.length && !messageRequestCount && (
+        <div className="sidebar-notification-empty">
+          <PhoneMissed size={24} aria-hidden="true" />
+          <h2>You’re all caught up</h2>
+          <p>Missed calls and message requests will appear here.</p>
+        </div>
+      )}
+    </section>
   );
 }

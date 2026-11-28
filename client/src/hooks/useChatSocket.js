@@ -6,6 +6,7 @@ export default function useChatSocket({
   setSocketStatus,
   setError,
   setMentionToast,
+  setMissedCalls,
 }) {
   useEffect(() => {
     if (!socket) return;
@@ -74,8 +75,13 @@ export default function useChatSocket({
       });
     }
 
-    function handleMissedCall({ callId } = {}) {
-      console.log("Call was not answered:", callId);
+    function handleMissedCall({ callId, callerId, callType } = {}) {
+      if (!callId || !callerId) return;
+      const call = { id: callId, callerId, callType, createdAt: new Date().toISOString() };
+      setMissedCalls((previous) => {
+        if (previous.some((item) => item.id === callId)) return previous;
+        return [call, ...previous].slice(0, 50);
+      });
     }
 
     function handleCallEnded({ callId } = {}) {
@@ -118,5 +124,6 @@ export default function useChatSocket({
     setSocketStatus,
     setError,
     setMentionToast,
+    setMissedCalls,
   ]);
 }

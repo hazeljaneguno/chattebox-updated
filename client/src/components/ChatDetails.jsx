@@ -1,4 +1,5 @@
 import Avatar from "./Avatar.jsx";
+import AddPeople from "./AddPeople.jsx";
 import preparePhoto from "../utils/preparePhoto.js";
 import { useMessageExtras } from "./messageExtras.js";
 
@@ -88,7 +89,6 @@ const titleMap = {
   pinned: "Pinned messages",
   nicknames: "Nicknames",
   members: "Members",
-  addMembers: "Add members",
   profile: "Profile",
   search: "Search conversation",
   notifications: "Notifications & sounds",
@@ -130,7 +130,7 @@ export default function ChatDetails({
   onSavePrivateNickname,
   onSaveGroupNickname,
   onFindGroupMembers,
-  onAddGroupMember,
+  onAddGroupMembers,
   onOpenBackgroundPicker,
   messages = [],
 }) {
@@ -162,9 +162,6 @@ export default function ChatDetails({
   const members = Array.isArray(chat?.members) ? chat.members : [];
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameError, setNicknameError] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
-  const [memberCandidates, setMemberCandidates] = useState([]);
-  const [memberBusy, setMemberBusy] = useState(false);
   const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState("");
   const [pictureBusy, setPictureBusy] = useState(false);
@@ -175,24 +172,6 @@ export default function ChatDetails({
   const canAddMembers = canAddGroupMembers(chat, currentUserId);
   const membersCanAdd = chat?.memberAddPolicy === "members";
 
-  useEffect(() => {
-    if (page !== "addMembers" || !canAddMembers || !onFindGroupMembers) return;
-    let active = true;
-    setMemberBusy(true);
-    setMemberError("");
-    setMemberCandidates([]);
-    const timer = setTimeout(() => {
-      onFindGroupMembers(memberSearch.trim())
-        .then((people) => { if (active) setMemberCandidates(people); })
-        .catch((error) => { if (active) setMemberError(error.message || "Could not load people."); })
-        .finally(() => { if (active) setMemberBusy(false); });
-    }, 200);
-    return () => { active = false; clearTimeout(timer); };
-  }, [page, canAddMembers, onFindGroupMembers, memberSearch]);
-
-  const availableMembers = memberCandidates.filter((candidate) => !members.some((member) =>
-    String(member.id ?? member._id) === String(candidate.id ?? candidate._id)
-  ));
   const [extras] = useMessageExtras(chat?.id??chat?._id);
   const allMessages = (Array.isArray(messages) ? messages : []).map((m) => ({
     ...m,
@@ -442,18 +421,6 @@ export default function ChatDetails({
     }
   }
 
-  async function addMember(memberId) {
-    setMemberSaving(true);
-    setMemberError("");
-    try {
-      await onAddGroupMember(chat, memberId);
-    } catch (error) {
-      setMemberError(error.message || "Could not add member.");
-    } finally {
-      setMemberSaving(false);
-    }
-  }
-
   function memberProfile(member) {
     const label = member.nickname || member.username || "Member";
     return (
@@ -473,6 +440,24 @@ export default function ChatDetails({
 
     setSubmittedQuery(value.toLowerCase());
   };
+
+  if (page === "addMembers") {
+    function closeAddPeople() {
+      if (initialPage === "addMembers") onClose?.();
+      else setPage("home");
+    }
+
+    return (
+      <AddPeople
+        members={members}
+        currentUserId={currentUserId}
+        canAdd={canAddMembers}
+        onFindPeople={onFindGroupMembers}
+        onAdd={(memberIds) => onAddGroupMembers(chat, memberIds)}
+        onClose={closeAddPeople}
+      />
+    );
+  }
 
   return (
     <div
@@ -672,7 +657,7 @@ export default function ChatDetails({
                   <button
                     key={action}
                     type="button"
-                    disabled={action === "addMembers" && (!canAddMembers || !onFindGroupMembers || !onAddGroupMember)}
+                    disabled={action === "addMembers" && (!canAddMembers || !onFindGroupMembers || !onAddGroupMembers)}
                     title={action === "addMembers" && !canAddMembers ? "Only admins can add members" : undefined}
                     onClick={() => action === "addMembers" ? setPage("addMembers") : open(action)}
                   >
@@ -858,29 +843,6 @@ export default function ChatDetails({
                 );
               })}
               {members.length === 0 && <p>No members to display.</p>}
-            </div>
-          ) : page === "addMembers" ? (
-            <div className="chat-details-section">
-              <h3>Add members</h3>
-              {canAddMembers && (
-                <label className="chat-details-form">
-                  Search people
-                  <input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
-                </label>
-              )}
-              {memberBusy && <p role="status">Working…</p>}
-              {memberError && <p role="alert">{memberError}</p>}
-              {!canAddMembers && <p>Only admins can add members.</p>}
-              {canAddMembers && !memberBusy && !memberError && availableMembers.length === 0 && (
-                <p>No additional people found.</p>
-              )}
-              {canAddMembers && availableMembers.map((candidate) => (
-                <button className="chat-details-item" key={candidate.id ?? candidate._id} type="button"
-                  disabled={memberBusy || memberSaving} onClick={() => addMember(candidate.id ?? candidate._id)}>
-                  <Avatar name={candidate.username} photo={candidate.profilePicture} />
-                  <span>Add {candidate.username}</span>
-                </button>
-              ))}
             </div>
           ) : page === "profile" ? (
             <div className="chat-details-profile">
