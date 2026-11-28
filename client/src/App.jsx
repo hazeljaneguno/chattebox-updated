@@ -2029,7 +2029,8 @@ useEffect(() => {
       const matchesFilter =
         chatFilter === "all" ||
         (chatFilter === "unread" && (chat.unread || 0) > 0) ||
-        (chatFilter === "groups" && chat.isGroup === true);
+        (chatFilter === "groups" && chat.isGroup === true) ||
+        (chatFilter === "active" && !chat.isGroup && onlineIds.has(String(chat.id)));
 
       return matchesSearch && matchesFilter;
     });
@@ -2037,7 +2038,7 @@ useEffect(() => {
       .map((chat) => ({ chat, timestamp: messageTimestamp(latestChatMessage(chat)) }))
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(({ chat }) => chat);
-  }, [chats, search, chatFilter]);
+  }, [chats, search, chatFilter, onlineIds]);
 
   // =========================
   // 27. ACTIVE CHAT REF
@@ -3015,7 +3016,8 @@ const typingMessage =
           socketStatus={socketStatus}
           menuOpen={menuOpen}
           setMenuOpen={setMenuOpen}
-          showNotice={showNotice}
+          messageRequestCount={messageRequests.length}
+          setShowMessageRequests={setShowMessageRequests}
           handleLogout={handleLogout}
           selectChat={selectChat}
           setShowNewChat={setShowNewChat}

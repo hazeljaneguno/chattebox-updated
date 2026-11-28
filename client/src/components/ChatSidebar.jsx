@@ -1,20 +1,19 @@
 import {
-  MessageCircle,
-  Search,
-  Plus,
-  MoreHorizontal,
-  Settings,
-  Users,
   Bell,
   LogOut,
+  Menu,
+  MessageCircle,
+  Search,
+  Settings,
+  SquarePen,
+  Users,
 } from "lucide-react";
 
 import "./ChatSidebar.css";
 import { typingChatKey } from "../hooks/useTypingIndicator.js";
-import Avatar, { initials, colorFor } from "./Avatar.jsx";
+import Avatar from "./Avatar.jsx";
 import { formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
-
-import { getAttachmentUrl, getReplyPreview } from "../utils/messageHelpers.js";
+import { getReplyPreview } from "../utils/messageHelpers.js";
 
 export default function ChatSidebar({
   user,
@@ -30,7 +29,8 @@ export default function ChatSidebar({
   socketStatus,
   menuOpen,
   setMenuOpen,
-  showNotice,
+  messageRequestCount,
+  setShowMessageRequests,
   handleLogout,
   selectChat,
   setShowNewChat,
@@ -38,96 +38,44 @@ export default function ChatSidebar({
   setError,
   setSelectedMemberIds,
   setGroupName,
-setNewSearch,
-setShowSettings,
+  setNewSearch,
+  setShowSettings,
 }) {
-  return (
-    <aside className="sidebar">
-      <div className="brand-row">
-        <div className="brand-mark">
-          <MessageCircle size={22} strokeWidth={2.5} />
-        </div>
+  const activeTab = chatFilter === "active";
+  const onlineChats = chats.filter(
+    (chat) => !chat.isGroup && onlineIds.has(String(chat.id))
+  );
+  const unreadCount = chats.reduce((total, chat) => total + (chat.unread || 0), 0);
 
-        <span className="brand-name">
-          chatter<span>box</span>
-        </span>
-
-        <button
-          className="icon-button sidebar-menu"
-          aria-label="More options"
-          onClick={() => setMenuOpen(!menuOpen)}
-        >
-          <MoreHorizontal size={21} />
-        </button>
-
-        {menuOpen && (
-          <div className="floating-menu">
-            <button
-  onClick={() => {
+  function openSettings() {
     setMenuOpen(false);
     setShowSettings(true);
-  }}
->
-  <Settings size={16} />
-  Settings
-</button>
+  }
 
-            <button
-  onClick={() => {
+  function openCreateGroup() {
     setMenuOpen(false);
-    handleLogout();
-  }}
->
-  <LogOut size={16} />
-  Log out
-</button>
-          </div>
-        )}
-      </div>
+    setError("");
+    setSelectedMemberIds([]);
+    setGroupName("");
+    setNewSearch("");
+    setShowCreateGroup(true);
+  }
 
-      <div className="profile-strip">
-        <div className={`my-avatar ${colorFor(user.username)}`}>
-          {initials(user.username)}
-          {user.profilePicture && <img className="chatterbox-avatar-photo" key={user.profilePicture}
-            src={getAttachmentUrl({ url: user.profilePicture })} alt=""
-            onError={(event) => { event.currentTarget.hidden = true; }} />}
-          <span className="online-dot" />
-        </div>
-
-        <div className="profile-copy">
-          <strong>{user.username}</strong>
-          <span>
-            <i /> {socketStatus === "connected" ? "Connected" : "Connecting..."}
-          </span>
-        </div>
-
+  return (
+    <aside className="sidebar chatterbox-sidebar" aria-label="Chats">
+      <header className="brand-row">
+        <h1 className="brand-name">Chatter<span>box</span></h1>
         <button
+          type="button"
           className="icon-button"
-          aria-label="Notifications"
-          onClick={() => showNotice("You're all caught up!")}
-        >
-          <Bell size={18} />
-        </button>
-      </div>
-
-      <div className="section-heading">
-        <div>
-          <span className="eyebrow">YOUR SPACE</span>
-          <h1>
-            Messages <span className="count-pill">{chats.length}</span>
-          </h1>
-        </div>
-
-        <button
-          className="new-chat-button"
           aria-label="New chat"
           onClick={() => setShowNewChat(true)}
         >
-          <Plus size={19} />
+          <SquarePen size={22} />
         </button>
-      </div>
+      </header>
 
-      <label className="search-box modal-search">
+      <label className="search-box">
         <Search size={18} />
         <input
           value={search}
@@ -137,40 +85,57 @@ setShowSettings,
         />
       </label>
 
-      <div className="chat-filters">
-
-        <button
-          className={chatFilter === "all" ? "filter-active" : ""}
-          onClick={() => setChatFilter("all")}
-        >
-          All people
-        </button>
-
-        <button
-          className={chatFilter === "unread" ? "filter-active" : ""}
-          onClick={() => setChatFilter("unread")}
-        >
-          Unread
-          {chats.some((chat) => chat.unread > 0) && (
-            <span className="filter-count">
-              {chats.reduce(
-                (total, chat) => total + (chat.unread || 0),
-                0
-              )}
-            </span>
-          )}
-        </button>
-
-        <button
-          className={chatFilter === "groups" ? "filter-active" : ""}
-          onClick={() => setChatFilter("groups")}
-        >
-          Groups
-        </button>
-      </div>
-      
       <div className="conversation-list">
-        <div className="list-label">PEOPLE</div>
+        <div className="sidebar-people" aria-label="Profile and online contacts">
+          <button type="button" onClick={openSettings}>
+            <Avatar
+              name={user.username}
+              photo={user.profilePicture}
+              online={socketStatus === "connected"}
+            />
+            <span>My profile</span>
+          </button>
+          {onlineChats.map((chat) => (
+            <button
+              type="button"
+              key={chat.id}
+              onClick={() => selectChat(chat)}
+            >
+              <Avatar name={chat.username || chat.name} photo={chat.profilePicture} online />
+              <span>{chat.username || chat.name}</span>
+            </button>
+          ))}
+        </div>
+
+        {!activeTab && (
+          <div className="chat-filters" aria-label="Conversation filters">
+            <button
+              type="button"
+              aria-pressed={chatFilter === "all"}
+              className={chatFilter === "all" ? "filter-active" : ""}
+              onClick={() => setChatFilter("all")}
+            >
+              All chats
+            </button>
+            <button
+              type="button"
+              aria-pressed={chatFilter === "unread"}
+              className={chatFilter === "unread" ? "filter-active" : ""}
+              onClick={() => setChatFilter("unread")}
+            >
+              Unread
+              {unreadCount > 0 && <span className="filter-count">{unreadCount}</span>}
+            </button>
+            <button
+              type="button"
+              aria-pressed={chatFilter === "groups"}
+              className={chatFilter === "groups" ? "filter-active" : ""}
+              onClick={() => setChatFilter("groups")}
+            >
+              Groups
+            </button>
+          </div>
+        )}
 
         {filteredChats.map((chat) => {
           const last = latestChatMessage(chat);
@@ -182,7 +147,7 @@ setShowSettings,
               key={chat.id}
               className={`conversation ${
                 sameId(activeId, chat.id) ? "conversation-active" : ""
-              }`}
+              } ${chat.unread > 0 ? "conversation-unread" : ""}`}
               onClick={() => selectChat(chat)}
             >
               <Avatar
@@ -218,44 +183,79 @@ setShowSettings,
         {filteredChats.length === 0 && (
           <div className="empty-search">
             <Users size={23} />
-            <strong>No people found</strong>
-            <span>Try another search or add a conversation.</span>
+            <strong>{activeTab && !search.trim() ? "No contacts online" : "No matching chats"}</strong>
           </div>
         )}
       </div>
 
-      <div className="sidebar-footer">
-        <button onClick={() => setShowNewChat(true)}>
-          <Users size={18} />
-          <span>Find people</span>
-        </button>
+      <div className="sidebar-nav-wrap">
+        {menuOpen && (
+          <div className="floating-menu" id="sidebar-options">
+            <button type="button" onClick={openSettings}><Settings size={17} /> Settings</button>
+            <button type="button" onClick={openCreateGroup}><Users size={17} /> Create group</button>
+            <button
+              type="button"
+              onClick={() => {
+                setMenuOpen(false);
+                handleLogout();
+              }}
+            >
+              <LogOut size={17} /> Log out
+            </button>
+          </div>
+        )}
 
-        <button onClick={handleLogout}>
-          <LogOut size={18} />
-          <span>Log out</span>
-        </button>
-
-        <button
-          onClick={() => {
-            setError("");
-            setSelectedMemberIds([]);
-            setGroupName("");
-            setNewSearch("");
-            setShowCreateGroup(true);
-          }}
-        >
-          <Users size={18} />
-          <span>Create group</span>
-        </button>
-
-        <div className="footer-note">
-          <span className="footer-spark">✳</span>
-          <span>
-            Good conversations
-            <br />
-            start with hello.
-          </span>
-        </div>
+        <nav className="sidebar-nav" aria-label="Chat navigation">
+          <button
+            type="button"
+            aria-pressed={!activeTab}
+            onClick={() => {
+              setMenuOpen(false);
+              setChatFilter("all");
+            }}
+          >
+            <span className="sidebar-nav-icon">
+              <MessageCircle size={21} />
+              {unreadCount > 0 && <span className="sidebar-nav-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+            </span>
+            <span>Messages</span>
+          </button>
+          <button
+            type="button"
+            aria-pressed={activeTab}
+            onClick={() => {
+              setMenuOpen(false);
+              setChatFilter("active");
+            }}
+          >
+            <span className="sidebar-nav-icon"><Users size={21} /></span>
+            <span>Active</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setMenuOpen(false);
+              setShowMessageRequests(true);
+            }}
+          >
+            <span className="sidebar-nav-icon">
+              <Bell size={21} />
+              {messageRequestCount > 0 && (
+                <span className="sidebar-nav-count">{messageRequestCount > 99 ? "99+" : messageRequestCount}</span>
+              )}
+            </span>
+            <span>Notifications</span>
+          </button>
+          <button
+            type="button"
+            aria-expanded={menuOpen}
+            aria-controls={menuOpen ? "sidebar-options" : undefined}
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <span className="sidebar-nav-icon"><Menu size={21} /></span>
+            <span>Menu</span>
+          </button>
+        </nav>
       </div>
     </aside>
   );
