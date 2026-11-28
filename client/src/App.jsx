@@ -3309,6 +3309,12 @@ onAction={async (action, payload) => {
       {/* SETTINGS MODAL */}
       <SettingsModal
         isOpen={showSettings}
+        user={user}
+        onMessageRequests={() => {
+          setShowSettings(false);
+          setShowMessageRequests(true);
+        }}
+        onLogout={handleLogout}
         onClose={() => setShowSettings(false)}
         theme={theme}
         onThemeChange={handleThemeChange}

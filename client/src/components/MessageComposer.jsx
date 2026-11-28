@@ -63,6 +63,7 @@ export default function MessageComposer({
 
   function selectFile(file, photoId = null) {
     if (!file) return;
+    if (isPhoto(file)) inputRef.current?.blur();
     if (file.size > MAX_FILE_BYTES) {
       setFileError("File must be 10 MB or smaller.");
       return;
@@ -107,7 +108,7 @@ onTypingChange?.(false);
       for (const [index, item] of queue.entries()) {
         const attachment = await preparePhoto(item.file, hd);
         await sendMessage(event, attachment, {
-          focusInput: index === queue.length - 1 && !galleryOpen && !like,
+          focusInput: index === queue.length - 1 && !photosSelected && !galleryOpen && !like,
           textOverride: index === 0 ? (like ? "👍" : draft) : "",
           includeReply: index === 0,
           photoBatchId: item.photoBatchId,
@@ -129,11 +130,11 @@ function handleDraftChange(nextDraft) {
   onTypingChange?.(Boolean(nextDraft.trim()));
 }
   function openPhotos() {
+    inputRef.current?.blur();
     if (!hasNativePhotoGrid) {
       photoInputRef.current?.click();
       return;
     }
-    inputRef.current?.blur();
     setEmojiOpen(false);
     setGalleryOpen((open) => !open);
   }
@@ -206,6 +207,8 @@ function handleDraftChange(nextDraft) {
   onBlur={() => onTypingChange?.(false)}
   placeholder="Message…"
   aria-label="Write a message"
+  disabled={galleryOpen}
+  inputMode={galleryOpen ? "none" : undefined}
   readOnly={sending}
   maxLength={4000}
 />

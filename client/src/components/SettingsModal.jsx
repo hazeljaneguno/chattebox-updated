@@ -1,186 +1,122 @@
-
-import { useEffect } from "react";
-import {
-  X,
-  Sun,
-  Moon,
-  Check,
-  CircleDot,
-  LoaderCircle,
-} from "lucide-react";
+import { useLayoutEffect, useRef, useState } from "react";
+import { ArrowLeft, AtSign, Check, ChevronRight, CircleDot, Inbox, LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { initials } from "./Avatar.jsx";
+import { getAttachmentUrl } from "../utils/messageHelpers.js";
 import "./SettingsModal.css";
 
-function SettingsModal({
-  isOpen,
-  onClose,
-  theme,
-  onThemeChange,
-  savingTheme = false,
-  showActiveStatus = true,
-  onActiveStatusChange,
-  savingActiveStatus = false,
-}) {
-  useEffect(() => {
-    if (!isOpen) return;
-
-    function handleEscape(event) {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    }
-
-    window.addEventListener("keydown", handleEscape);
-
-    return () => {
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
-
-  const themes = [
-    {
-      id: "light",
-      label: "Light",
-      description: "A bright and clean appearance",
-      icon: Sun,
-    },
-    {
-      id: "dark",
-      label: "Dark",
-      description: "A comfortable appearance for low light",
-      icon: Moon,
-    },
-  ];
-
+function SettingsRow({ icon: Icon, label, detail, onClick, end, ...attributes }) {
+  const Element = onClick ? "button" : "div";
   return (
-    <div
-      className="settings-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="settings-title"
-      >
-        <header className="settings-header">
-          <div>
-            <h2 id="settings-title">Settings</h2>
-            <p>Customize your Chatterbox experience.</p>
-          </div>
-
-          <button
-            type="button"
-            className="settings-close"
-            onClick={onClose}
-            aria-label="Close settings"
-          >
-            <X size={20} />
-          </button>
-        </header>
-
-        <div className="settings-content">
-          {/* Appearance */}
-          <div className="settings-section-heading">
-            <h3>Appearance</h3>
-            <p>Choose how Chatterbox looks on your device.</p>
-          </div>
-
-          <div className="theme-options">
-            {themes.map((item) => {
-              const Icon = item.icon;
-              const isSelected = theme === item.id;
-
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`theme-option ${
-                    isSelected ? "selected" : ""
-                  }`}
-                  onClick={() => onThemeChange(item.id)}
-                  disabled={savingTheme || isSelected}
-                  aria-pressed={isSelected}
-                >
-                  <span className="theme-icon">
-                    <Icon size={22} />
-                  </span>
-
-                  <span className="theme-description">
-                    <strong>{item.label}</strong>
-                    <small>{item.description}</small>
-                  </span>
-
-                  {isSelected && (
-                    <span className="theme-check">
-                      <Check size={17} />
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {savingTheme && (
-            <p className="settings-saving">
-              Saving your preference...
-            </p>
-          )}
-
-          {/* Active Status */}
-          <div className="settings-section-heading active-status-heading">
-            <h3>Privacy</h3>
-            <p>Manage how others see your activity.</p>
-          </div>
-
-          <div className="active-status-option">
-            <span className="active-status-icon">
-              <CircleDot size={22} />
-            </span>
-
-            <div className="active-status-description">
-              <strong>Active Status</strong>
-              <small>
-                Let others see when you're active on Chatterbox.
-              </small>
-            </div>
-
-            <button
-              type="button"
-              className={`active-status-switch ${
-                showActiveStatus ? "enabled" : ""
-              }`}
-              role="switch"
-              aria-checked={showActiveStatus}
-              aria-label="Show my active status"
-              disabled={savingActiveStatus}
-              onClick={() =>
-                onActiveStatusChange?.(!showActiveStatus)
-              }
-            >
-              <span className="active-status-switch-thumb" />
-            </button>
-          </div>
-
-          {savingActiveStatus && (
-            <p className="settings-saving">
-              <LoaderCircle size={14} className="settings-spinner" />
-              Saving Active Status...
-            </p>
-          )}
-
-          <p className="active-status-note">
-            {showActiveStatus
-              ? "Others can see when you're online and when you were last active."
-              : "Your online and last-active status is hidden from others."}
-          </p>
-        </div>
-      </section>
-    </div>
+    <Element className="settings-row" onClick={onClick}
+      {...(onClick ? { type: "button" } : {})} {...attributes}>
+      <span className="settings-row-icon"><Icon size={20} aria-hidden="true" /></span>
+      <span className="settings-row-copy">
+        <strong>{label}</strong>
+        {detail && <small>{detail}</small>}
+      </span>
+      {end}
+    </Element>
   );
 }
 
-export default SettingsModal;
+export default function SettingsModal({
+  isOpen, onClose, user, theme, onThemeChange, savingTheme = false,
+  showActiveStatus = true, onActiveStatusChange, savingActiveStatus = false,
+  onMessageRequests, onLogout,
+}) {
+  if (!isOpen) return null;
+  return <OpenSettings {...{
+    onClose, user, theme, onThemeChange, savingTheme, showActiveStatus,
+    onActiveStatusChange, savingActiveStatus, onMessageRequests, onLogout,
+  }} />;
+}
+
+function OpenSettings({
+  onClose, user, theme, onThemeChange, savingTheme,
+  showActiveStatus, onActiveStatusChange, savingActiveStatus,
+  onMessageRequests, onLogout,
+}) {
+  const [page, setPage] = useState("Settings");
+  const dialog = useRef(null);
+  const body = useRef(null);
+  const username = user?.username || "";
+  const name = user?.displayName || user?.name || username || "Your account";
+  const photo = user?.profilePicture;
+  const back = page === "Settings" ? onClose : () => setPage("Settings");
+
+  useLayoutEffect(() => {
+    const element = dialog.current;
+    if (element && !element.open) element.showModal();
+    return () => element?.close();
+  }, []);
+
+  useLayoutEffect(() => {
+    if (body.current) body.current.scrollTop = 0;
+  }, [page]);
+
+  return (
+    <dialog ref={dialog} className="chatterbox-settings" aria-labelledby="settings-title"
+      onCancel={(event) => { event.preventDefault(); back(); }}>
+      <header className="settings-topbar">
+        <button type="button" onClick={back} aria-label={page === "Settings" ? "Close settings" : "Back to settings"}>
+          <ArrowLeft size={22} aria-hidden="true" />
+        </button>
+        <h2 id="settings-title">{page}</h2>
+      </header>
+      <div className="settings-scroll" ref={body}>
+        {page === "Settings" && <>
+          <div className="settings-profile">
+            <span className="settings-profile-avatar" aria-hidden="true">
+              {initials(name)}
+              {photo && <img src={getAttachmentUrl({ url: photo })} alt=""
+                onError={(event) => { event.currentTarget.hidden = true; }} />}
+            </span>
+            <h3>{name}</h3>
+            {username && <span>@{username}</span>}
+            <button type="button" onClick={() => setPage("Profile")}>View profile</button>
+          </div>
+          <section className="settings-group" aria-label="Account">
+            <h3>Account</h3>
+            <SettingsRow icon={UserRound} label={name} detail="Signed in to Chatterbox"
+              onClick={() => setPage("Profile")} end={<Check size={18} aria-hidden="true" />} />
+          </section>
+          <section className="settings-group" aria-label="Preferences">
+            <h3>Preferences</h3>
+            <SettingsRow icon={theme === "dark" ? Moon : Sun} label="Appearance"
+              detail={theme === "dark" ? "Dark" : "Light"}
+              onClick={() => setPage("Appearance")} end={<ChevronRight size={18} aria-hidden="true" />} />
+            <SettingsRow icon={CircleDot} label="Active status"
+              detail={savingActiveStatus ? "Saving…" : showActiveStatus ? "On" : "Off"}
+              role="switch" aria-checked={showActiveStatus} disabled={savingActiveStatus}
+              onClick={() => onActiveStatusChange?.(!showActiveStatus)}
+              end={<span className="settings-toggle" aria-hidden="true" />} />
+          </section>
+          <section className="settings-group" aria-label="Privacy and account actions">
+            <h3>Privacy and account actions</h3>
+            {onMessageRequests && <SettingsRow icon={Inbox} label="Message requests"
+              onClick={onMessageRequests} end={<ChevronRight size={18} aria-hidden="true" />} />}
+            <SettingsRow icon={LogOut} label="Log out" onClick={onLogout} />
+          </section>
+        </>}
+        {page === "Profile" && (
+          <section className="settings-group" aria-label="Profile details">
+            <SettingsRow icon={UserRound} label="Name" detail={name} />
+            {username && <SettingsRow icon={AtSign} label="Username" detail={username} />}
+          </section>
+        )}
+        {page === "Appearance" && (
+          <section className="settings-group" aria-label="Theme">
+            <h3>Theme</h3>
+            {[{ id: "light", label: "Light", icon: Sun }, { id: "dark", label: "Dark", icon: Moon }].map((option) => (
+              <SettingsRow key={option.id} icon={option.icon} label={option.label}
+                aria-pressed={theme === option.id} disabled={savingTheme || theme === option.id}
+                onClick={() => onThemeChange(option.id)}
+                end={theme === option.id && <Check size={18} aria-hidden="true" />} />
+            ))}
+            {savingTheme && <p role="status">Saving your preference…</p>}
+          </section>
+        )}
+      </div>
+    </dialog>
+  );
+}
