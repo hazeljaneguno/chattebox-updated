@@ -6,6 +6,10 @@ import crypto from "node:crypto";
 import { saveAttachment } from "../services/attachmentStorage.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
+import mongoose from "mongoose";
+import Group from "../models/Group.js";
+import { postGroupNotice } from "../services/groupNotices.js";
+
 const router = express.Router();
 
 const uploadExtensions = new Map([
@@ -49,6 +53,8 @@ const upload = multer({
 router.post("/", requireAuth, receiveUpload);
 router.post("/profile-picture", requireAuth, receiveUpload);
 
+router.post("/groups/:groupId/profile-picture", requireAuth, receiveUpload);
+
 function isProfileImage({ buffer, mimetype }) {
   if (mimetype === "image/jpeg") return buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
   if (mimetype === "image/png") return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
@@ -73,16 +79,42 @@ function receiveUpload(req, res, next) {
     }
 
     const isProfilePicture = req.path === "/profile-picture";
-    if (isProfilePicture && !isProfileImage(req.file)) {
+    const { groupId } = req.params;
+    if ((isProfilePicture || groupId) && !isProfileImage(req.file)) {
       return res.status(415).json({ message: "Choose a JPEG, PNG, or WebP photo." });
     }
 
     const filename = crypto.randomUUID() + uploadExtensions.get(req.file.mimetype);
     try {
+      if (groupId && (!mongoose.isValidObjectId(groupId) ||
+          !(await Group.exists({ _id: groupId, members: req.user._id })))) {
+        return res.status(404).json({ message: "Group not found or you are not a member." });
+      }
       await saveAttachment(filename, req.file);
+      const io = req.app.get("io");
+      if (groupId) {
+        const group = await Group.findOneAndUpdate(
+          { _id: groupId, members: req.user._id },
+          { $set: { profilePicture: `/uploads/${filename}` } },
+          { new: true }
+        ).lean();
+        if (!group) return res.status(404).json({ message: "Group membership changed." });
+
+        const update = { groupId: String(group._id), profilePicture: group.profilePicture };
+        for (const memberId of group.members) {
+          io?.to(`user:${memberId}`).emit("group:profile-picture:updated", update);
+        }
+        const actor = req.user.username || "A group member";
+        await postGroupNotice(io, group, req.user, `${actor} changed the group photo.`);
+        return res.status(201).json(update);
+      }
       if (isProfilePicture) {
         req.user.profilePicture = `/uploads/${filename}`;
         await req.user.save();
+        io?.emit("user:profile-picture:updated", {
+          userId: String(req.user._id),
+          profilePicture: req.user.profilePicture,
+        });
         return res.status(201).json({ profilePicture: req.user.profilePicture });
       }
     } catch (error) {

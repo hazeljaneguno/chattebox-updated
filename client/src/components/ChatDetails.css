@@ -755,3 +755,36 @@
 .chat-details-typing-option input:checked::before {
   justify-self: end;
 }
+
+
+.chat-details-avatar .avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  font-size: 26px;
+}
+
+.chat-details-photo-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 10px;
+  background: var(--hover, #eee9f6);
+  color: var(--text, #24202a);
+}
+
+.chat-details-member-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding-block: 8px;
+}
+
+.chat-details-member-row button {
+  grid-column: 2 / -1;
+  justify-self: start;
+}

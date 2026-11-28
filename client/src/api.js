@@ -421,6 +421,18 @@ export const api = {
       }
     ),
 
+  setGroupAdmin: (groupId, memberId, admin) =>
+    request(`/api/groups/${encodeURIComponent(groupId)}/admins/${encodeURIComponent(memberId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ admin }),
+    }),
+
+  uploadGroupPicture: (groupId, formData) =>
+    request(`/api/uploads/groups/${encodeURIComponent(groupId)}/profile-picture`, {
+      method: "POST",
+      body: formData,
+    }),
+
   deleteGroup: (groupId) =>
     request(
       `/api/groups/${encodeURIComponent(groupId)}`,

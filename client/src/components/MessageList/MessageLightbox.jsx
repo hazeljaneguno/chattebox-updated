@@ -7,6 +7,7 @@ export default function MessageLightbox({
   selectedImage,
   stackPhotos,
   onSelectPhoto,
+  onForward,
   onClose,
   onPrevious,
   onNext,
@@ -192,7 +193,10 @@ export default function MessageLightbox({
             setRotation(0);
           }}><Pencil size={20} /> Edit</button>
           <button type="button" disabled><Sparkles size={20} /> Edit with AI <small>Unavailable</small></button>
-          <button type="button" disabled><Forward size={20} /> Forward <small>Unavailable</small></button>
+          <button type="button" disabled={!onForward || photos.length !== 1 || !photos[0]?.message}
+            onClick={() => { setMenuOpen(false); onForward(photos[0].message); }}>
+            <Forward size={20} /> Forward
+          </button>
           <button type="button" onClick={() => share(photos)}><Share2 size={20} /> Share</button>
           <button type="button" onClick={() => setMenuOpen(false)}>Close menu</button>
         </section>
@@ -244,7 +248,7 @@ export default function MessageLightbox({
         selectedImage.imageUrl;
 
   if (!src) return null;
-  const photos = [{ src, alt: selectedImage.alt }];
+  const photos = [{ src, alt: selectedImage.alt, message: selectedImage.message }];
 
   return createPortal(
     <div

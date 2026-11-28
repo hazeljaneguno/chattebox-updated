@@ -299,6 +299,7 @@ export default function MessageList({
   activeGroupCall = null,
   onJoinGroupCall,
   onMessageAction,
+  onAddGroupMembers,
   onReact,
   receiptSocket,
 }) {
@@ -752,6 +753,11 @@ function getSenderDisplayName(message) {
   return (
     <>
       <div className="message-list">
+        {onAddGroupMembers && (
+          <button type="button" className="message-list-add-members" onClick={onAddGroupMembers}>
+            Add group members
+          </button>
+        )}
         {showLiveBanner && (
           <CallEvent
             call={activeGroupCall}
@@ -867,7 +873,7 @@ function getSenderDisplayName(message) {
           const mine = isMine(message);
           const showSenderAvatar = !isGroup && !mine && !message.isDeleted;
           const senderName = message.senderName || activeChat?.username || activeChat?.name || "User";
-          const senderPhoto = message.senderProfilePicture || activeChat?.profilePicture;
+          const senderPhoto = activeChat?.profilePicture || message.senderProfilePicture;
           const readers = mine ? (message.readBy || []).map((receipt) => {
             const member = isGroup
               ? activeChat?.members?.find((person) =>
@@ -876,7 +882,7 @@ function getSenderDisplayName(message) {
             return {
               id: receipt.userId,
               name: member?.nickname || member?.username || member?.name || receipt.username || "Someone",
-              photo: receipt.profilePicture || member?.profilePicture || member?.avatar || member?.profileImage || member?.photo,
+              photo: member?.profilePicture || receipt.profilePicture || member?.avatar || member?.profileImage || member?.photo,
             };
           }) : [];
 
@@ -1066,6 +1072,10 @@ function getSenderDisplayName(message) {
       </div>
 
       <MessageLightbox
+        onForward={onMessageAction ? (message) => {
+          setOpenPhoto(null);
+          onMessageAction(message, "forward");
+        } : undefined}
         selectedImage={viewerPhotos[photoIndex]}
         stackPhotos={stackMessages && photoIndex === -1 ? viewerPhotos : undefined}
         onSelectPhoto={(message) => setOpenPhoto({ ...openPhoto, message })}

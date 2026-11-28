@@ -1,3 +1,5 @@
+import Avatar from "./Avatar.jsx";
+import preparePhoto from "../utils/preparePhoto.js";
 import { useMessageExtras } from "./messageExtras.js";
 
 import { useEffect, useRef, useState } from "react";
@@ -87,6 +89,7 @@ const titleMap = {
   nicknames: "Nicknames",
   members: "Members",
   addMembers: "Add members",
+  profile: "Profile",
   search: "Search conversation",
   notifications: "Notifications & sounds",
   typingIndicator: "Typing indicator",
@@ -104,10 +107,14 @@ const internalPages = new Set([
   "notifications",
   "typingIndicator",
   "customize",
+  "profile",
 ]);
 
 export default function ChatDetails({
   chat,
+  initialPage = "home",
+  onSaveGroupPicture,
+  onSetGroupAdmin,
   online = false,
   showActiveStatus = true,
   showTypingIndicator = true,
@@ -124,7 +131,7 @@ export default function ChatDetails({
   onOpenBackgroundPicker,
   messages = [],
 }) {
-  const [page, setPage] = useState("home");
+  const [page, setPage] = useState(initialPage);
   const [nickname, setNickname] = useState("");
   const [nicknameMember, setNicknameMember] = useState(null);
   const nicknameDialogRef = useRef(null);
@@ -146,12 +153,37 @@ export default function ChatDetails({
   const members = Array.isArray(chat?.members) ? chat.members : [];
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameError, setNicknameError] = useState("");
+  const [memberSearch, setMemberSearch] = useState("");
   const [memberCandidates, setMemberCandidates] = useState([]);
   const [memberBusy, setMemberBusy] = useState(false);
+  const [memberSaving, setMemberSaving] = useState(false);
   const [memberError, setMemberError] = useState("");
-  const canAddMembers = currentUserId != null &&
-    String(chat?.creatorId) === String(currentUserId);
-  const [extras,updateExtra] = useMessageExtras(chat?.id??chat?._id);
+  const [pictureBusy, setPictureBusy] = useState(false);
+  const [pictureError, setPictureError] = useState("");
+  const pictureInput = useRef(null);
+  const isCreator = currentUserId != null && String(chat?.creatorId) === String(currentUserId);
+  const isAdmin = (id) => (chat?.adminIds || []).some((adminId) => String(adminId) === String(id));
+  const canAddMembers = isCreator || isAdmin(currentUserId);
+
+  useEffect(() => {
+    if (page !== "addMembers" || !canAddMembers || !onFindGroupMembers) return;
+    let active = true;
+    setMemberBusy(true);
+    setMemberError("");
+    setMemberCandidates([]);
+    const timer = setTimeout(() => {
+      onFindGroupMembers(memberSearch.trim())
+        .then((people) => { if (active) setMemberCandidates(people); })
+        .catch((error) => { if (active) setMemberError(error.message || "Could not load people."); })
+        .finally(() => { if (active) setMemberBusy(false); });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [page, canAddMembers, onFindGroupMembers, memberSearch]);
+
+  const availableMembers = memberCandidates.filter((candidate) => !members.some((member) =>
+    String(member.id ?? member._id) === String(candidate.id ?? candidate._id)
+  ));
+  const [extras] = useMessageExtras(chat?.id??chat?._id);
   const allMessages = (Array.isArray(messages) ? messages : []).map((m) => ({
     ...m,
     ...(extras[String(m.id ?? m._id)] || {}),
@@ -219,13 +251,13 @@ export default function ChatDetails({
 
   // Reset when switching conversations.
   useEffect(() => {
-    setPage("home");
+    setPage(initialPage);
     setNickname("");
     setNicknameError("");
     setQuery("");
     setSubmittedQuery("");
     setMoreMenuOpen(false);
-  }, [chat?.id]);
+  }, [chat?.id, initialPage]);
 
   useEffect(() => {
     if (page !== "notifications" || !chat?.id) return;
@@ -361,57 +393,50 @@ export default function ChatDetails({
     }
   }
 
-  async function openAddMembers() {
-    setPage("addMembers");
-    setMemberBusy(true);
-    setMemberError("");
-    setMemberCandidates([]);
+  async function saveGroupPicture(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || pictureBusy) return;
+    setPictureBusy(true);
+    setPictureError("");
     try {
-      setMemberCandidates(await onFindGroupMembers());
+      await onSaveGroupPicture(chat, await preparePhoto(file));
     } catch (error) {
-      setMemberError(error.message || "Could not load people.");
+      setPictureError(error.message || "Could not save the group photo.");
     } finally {
-      setMemberBusy(false);
+      setPictureBusy(false);
+    }
+  }
+
+  async function changeAdmin(memberId, admin) {
+    setMemberSaving(true);
+    setMemberError("");
+    try {
+      await onSetGroupAdmin(chat, memberId, admin);
+    } catch (error) {
+      setMemberError(error.message || "Could not update the admin role.");
+    } finally {
+      setMemberSaving(false);
     }
   }
 
   async function addMember(memberId) {
-    setMemberBusy(true);
+    setMemberSaving(true);
     setMemberError("");
     try {
       await onAddGroupMember(chat, memberId);
     } catch (error) {
       setMemberError(error.message || "Could not add member.");
     } finally {
-      setMemberBusy(false);
+      setMemberSaving(false);
     }
   }
 
   function memberProfile(member) {
     const label = member.nickname || member.username || "Member";
-    const photo = member.profilePicture;
-    const avatar = photo ? safeUrl(photo.startsWith("/uploads/")
-      ? `${API_URL.replace(/\/+$/, "")}${photo}`
-      : photo) : null;
-
     return (
       <>
-        <span aria-hidden="true" style={{
-          position: "relative", display: "grid", placeItems: "center",
-          width: 48, height: 48, marginInline: "auto", borderRadius: "50%",
-          overflow: "hidden", background: "#ede8fb", color: "#533a83",
-          fontWeight: 600,
-        }}>
-          {label.charAt(0).toUpperCase()}
-          {avatar && (
-            <img
-              src={avatar}
-              alt=""
-              onError={(event) => { event.currentTarget.hidden = true; }}
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
-            />
-          )}
-        </span>
+        <Avatar name={label} photo={member.profilePicture} />
         <span style={{ overflowWrap: "anywhere" }}>{label}</span>
       </>
     );
@@ -558,8 +583,19 @@ export default function ChatDetails({
               {/* CENTERED PROFILE */}
               <div className="chat-details-profile">
                 <div className="chat-details-avatar">
-                  <UserRound size={40} />
+                  <Avatar name={name} photo={chat.profilePicture} />
                 </div>
+                {isGroup && onSaveGroupPicture && (
+                  <>
+                    <input ref={pictureInput} type="file" hidden
+                      accept="image/jpeg,image/png,image/webp" onChange={saveGroupPicture} />
+                    <button className="chat-details-photo-button" type="button" disabled={pictureBusy}
+                      onClick={() => pictureInput.current?.click()}>
+                      <Images size={16} /> {pictureBusy ? "Uploading…" : "Change group photo"}
+                    </button>
+                    {pictureError && <p role="alert">{pictureError}</p>}
+                  </>
+                )}
 
                 <h2>{name}</h2>
 
@@ -595,8 +631,8 @@ export default function ChatDetails({
                     key={action}
                     type="button"
                     disabled={action === "addMembers" && (!canAddMembers || !onFindGroupMembers || !onAddGroupMember)}
-                    title={action === "addMembers" && !canAddMembers ? "Only the group creator can add members" : undefined}
-                    onClick={() => action === "addMembers" ? openAddMembers() : open(action)}
+                    title={action === "addMembers" && !canAddMembers ? "Only the creator and group admins can add members" : undefined}
+                    onClick={() => action === "addMembers" ? setPage("addMembers") : open(action)}
                   >
                     <span>
                       <Icon size={21} />
@@ -611,7 +647,7 @@ export default function ChatDetails({
                 <section className="chat-details-section" aria-label="Group members">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <h3>Members</h3>
-                    <button className="chat-details-item" style={{ width: "auto" }} type="button" onClick={() => open("members")}>
+                    <button className="chat-details-item" style={{ width: "auto" }} type="button" onClick={() => { setMemberError(""); open("members"); }}>
                       See all
                     </button>
                   </div>
@@ -745,25 +781,54 @@ export default function ChatDetails({
             </div>
           ) : page === "members" ? (
             <div className="chat-details-section">
-              {members.map((member) => (
-                <div key={member.id ?? member._id} style={{ display: "grid", gridTemplateColumns: "48px 1fr", gap: 12, alignItems: "center", marginBlock: 10 }}>
-                  {memberProfile(member)}
-                </div>
-              ))}
+              <h3>Members</h3>
+              {memberError && <p role="alert">{memberError}</p>}
+              {members.map((member) => {
+                const id = member.id ?? member._id;
+                const creator = String(id) === String(chat.creatorId);
+                const admin = isAdmin(id);
+                return (
+                  <div className="chat-details-member-row" key={id}>
+                    {memberProfile(member)}
+                    <small>{creator ? "Creator" : admin ? "Admin" : "Member"}</small>
+                    {isCreator && !creator && onSetGroupAdmin && (
+                      <button type="button" className="chat-details-photo-button" disabled={memberSaving}
+                        onClick={() => changeAdmin(id, !admin)}>
+                        {admin ? "Remove admin" : "Make admin"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
               {members.length === 0 && <p>No members to display.</p>}
             </div>
           ) : page === "addMembers" ? (
             <div className="chat-details-section">
+              <h3>Add members</h3>
+              {canAddMembers && (
+                <label className="chat-details-form">
+                  Search people
+                  <input value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
+                </label>
+              )}
               {memberBusy && <p role="status">Working…</p>}
               {memberError && <p role="alert">{memberError}</p>}
-              {memberCandidates.filter((candidate) => !members.some((member) =>
-                String(member.id ?? member._id) === String(candidate.id ?? candidate._id)
-              )).map((candidate) => (
-                <button className="chat-details-item" key={candidate.id ?? candidate._id} type="button" disabled={memberBusy} onClick={() => addMember(candidate.id ?? candidate._id)}>
-                  <UserPlus size={19} />
+              {!canAddMembers && <p>Only the creator and group admins can add members.</p>}
+              {canAddMembers && !memberBusy && !memberError && availableMembers.length === 0 && (
+                <p>No additional people found.</p>
+              )}
+              {canAddMembers && availableMembers.map((candidate) => (
+                <button className="chat-details-item" key={candidate.id ?? candidate._id} type="button"
+                  disabled={memberBusy || memberSaving} onClick={() => addMember(candidate.id ?? candidate._id)}>
+                  <Avatar name={candidate.username} photo={candidate.profilePicture} />
                   <span>Add {candidate.username}</span>
                 </button>
               ))}
+            </div>
+          ) : page === "profile" ? (
+            <div className="chat-details-profile">
+              <div className="chat-details-avatar"><Avatar name={name} photo={chat.profilePicture} /></div>
+              <h2>{name}</h2>
             </div>
           ) : page === "nicknames" ? (
             <div className="chat-details-nickname-list">

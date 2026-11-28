@@ -20,6 +20,8 @@ const groupSchema = new mongoose.Schema(
   enum: ["default", "lavender", "ocean", "sunset", "forest", "rose", "mint", "peach", "night", "sky" ],
   default: "default",
 },
+    profilePicture: { type: String, default: "" },
+    admins: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     members: [
       {
         type: mongoose.Schema.Types.ObjectId,

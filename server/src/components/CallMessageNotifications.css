@@ -1,0 +1,197 @@
+
+/* =========================================
+   CHATTERBOX CALL MESSAGE NOTIFICATIONS
+   Private calls + Group calls
+   ========================================= */
+
+/* 1. Call containers */
+.call-media-area,
+.group-call-content,
+.group-call-modal {
+  position: relative;
+}
+
+/* 2. Chat icon */
+.call-message-icon,
+.group-call-message-icon {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 3. Unread message badge */
+.call-message-badge,
+.group-call-message-badge,
+.call-chat-badge {
+  position: absolute;
+  top: -8px;
+  right: -10px;
+
+  display: grid;
+  place-items: center;
+
+  min-width: 19px;
+  height: 19px;
+  padding: 0 4px;
+
+  border-radius: 999px;
+  border: 2px solid #303443;
+
+  background: #f02849;
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+/* 4. New message popup */
+.call-message-popup,
+.group-call-message-popup {
+  position: absolute;
+  z-index: 120;
+
+  top: 16px;
+  right: 16px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  width: max-content;
+  max-width: min(320px, calc(100% - 32px));
+
+  padding: 12px 16px;
+
+  border: 1px solid #51576a;
+  border-radius: 12px;
+
+  background: rgba(30, 35, 50, 0.96);
+  color: #ffffff;
+
+  text-align: left;
+  cursor: pointer;
+
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  animation: call-message-appear 0.25s ease-out;
+}
+
+/* 5. Sender name */
+.call-message-popup strong,
+.group-call-message-popup strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+/* 6. Message preview */
+.call-message-popup span,
+.group-call-message-popup span {
+  display: block;
+
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  font-size: 13px;
+  color: #e5e7eb;
+}
+
+/* 7. Persistent unread reminder */
+.call-unread-reminder,
+.group-call-unread-reminder {
+  position: absolute;
+  z-index: 119;
+
+  top: 92px;
+  right: 16px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 46px;
+  height: 46px;
+
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+
+  background: #303443;
+  color: #ffffff;
+
+  cursor: pointer;
+
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* 8. Badge on floating reminder */
+.call-unread-reminder .call-chat-badge,
+.group-call-unread-reminder .group-call-message-badge {
+  top: -5px;
+  right: -5px;
+}
+
+/* 9. Hover and focus */
+.call-message-popup:hover,
+.group-call-message-popup:hover,
+.call-unread-reminder:hover,
+.group-call-unread-reminder:hover {
+  background: #3b4258;
+}
+
+.call-message-popup:focus-visible,
+.group-call-message-popup:focus-visible,
+.call-unread-reminder:focus-visible,
+.group-call-unread-reminder:focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 3px;
+}
+
+/* 10. Popup entrance animation */
+@keyframes call-message-appear {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 11. Mobile adjustments */
+@media (max-width: 600px) {
+  .call-message-popup,
+  .group-call-message-popup {
+    top: 12px;
+    right: 12px;
+
+    max-width: calc(100% - 24px);
+    padding: 10px 12px;
+  }
+
+  .call-unread-reminder,
+  .group-call-unread-reminder {
+    top: 82px;
+    right: 12px;
+
+    width: 42px;
+    height: 42px;
+  }
+}
+
+/* 12. Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .call-message-popup,
+  .group-call-message-popup {
+    animation: none;
+  }
+}

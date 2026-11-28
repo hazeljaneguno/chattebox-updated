@@ -1,11 +1,12 @@
 import { useMessageExtras } from "./messageExtras.js";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   MessageCircle,
   LoaderCircle,
 } from "lucide-react";
 
+import ForwardMessageDialog from "./ForwardMessageDialog.jsx";
 import MessageList from "./MessageList/MessageList.jsx";
 import "./ConversationBody.css";
 
@@ -50,6 +51,9 @@ export default function ConversationBody(props) {
 
 function ActiveConversationBody({
   activeChat,
+  forwardChats,
+  onForwarded,
+  onAddGroupMembers,
   loadingMessages = false,
   pendingPhotos,
   messageJump,
@@ -75,6 +79,7 @@ function ActiveConversationBody({
   ongoingGroupCall = null,
   onJoinGroupCall,
 }) {
+  const [forwardMessage, setForwardMessage] = useState(null);
   const conversationPhotos = pendingPhotos?.filter((photo) =>
     normalizeId(photo.chatId) === normalizeId(activeChat.id ?? activeChat._id) &&
     photo.isGroup === Boolean(activeChat.isGroup)
@@ -110,7 +115,7 @@ function ActiveConversationBody({
     if(action==="pin")return updateExtra(id,{isPinned:!message.isPinned});
     if(action==="reminder") {const when=prompt("Reminder date and time (YYYY-MM-DDTHH:MM):");if(when&&Number.isFinite(new Date(when).getTime()))updateExtra(id,{reminderAt:when});return;}
     if(action==="save-image"&&message.attachment?.url){window.open(message.attachment.url,"_blank","noopener,noreferrer");return;}
-    if(action==="forward")return alert("Forwarding needs a recipient selection and backend handler.");
+    if(action==="forward")return setForwardMessage(message);
     if(action==="ai-image"||action==="ai-edit")return alert("AI image service is not configured.");
     if(action==="bump"||action==="report")return alert(`${action} requires server support.`);
   };
@@ -215,7 +220,19 @@ function react(message, emoji) {
           </div>
         )}
 
+      {forwardMessage && (
+        <ForwardMessageDialog
+          chats={forwardChats}
+          sourceChat={activeChat}
+          message={forwardMessage}
+          socketRef={socketRef}
+          onForwarded={onForwarded}
+          onClose={() => setForwardMessage(null)}
+        />
+      )}
+
       <MessageList
+        onAddGroupMembers={onAddGroupMembers}
         receiptSocket={receiptSocket}
         messageJump={messageJump}
         messages={messages}

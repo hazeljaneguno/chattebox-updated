@@ -9,27 +9,36 @@ import GroupMessage from "../models/GroupMessage.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
+import { postGroupNotice } from "../services/groupNotices.js";
+
 const router = Router();
 
-async function postGroupNotice(io, group, actor, text) {
-  const notice = await GroupMessage.create({
-    group: group._id,
-    sender: actor._id,
-    type: "group_notice",
-    text,
-  });
-  const message = {
-    id: String(notice._id),
-    groupId: String(notice.group),
-    senderId: String(notice.sender),
-    senderName: actor.username || "A group member",
-    type: notice.type,
-    text: notice.text,
-    createdAt: notice.createdAt,
+function groupSummary(group) {
+  return {
+    id: String(group._id),
+    name: group.name,
+    creatorId: String(group.creator),
+    background: group.background || "default",
+    profilePicture: group.profilePicture || "",
+    adminIds: (group.admins || []).map(String),
+    members: group.members.map((member) => ({
+      id: String(member._id),
+      username: member.username,
+      profilePicture: member.profilePicture || "",
+      nickname: group.nicknames?.[String(member._id)] ?? "",
+    })),
   };
-  for (const memberId of group.members) {
-    io?.to(`user:${memberId}`).emit("group:message:new", message);
+}
+
+async function publishGroupMembers(io, groupId) {
+  const group = await Group.findById(groupId)
+    .populate("members", "_id username profilePicture")
+    .lean();
+  const update = { group: groupSummary(group) };
+  for (const member of group.members) {
+    io?.to(`user:${member._id}`).emit("group:members:updated", update);
   }
+  return update;
 }
 
 // Get groups that the logged-in user belongs to
@@ -38,7 +47,7 @@ router.get("/", requireAuth, async (req, res, next) => {
     const groups = await Group.find({
       members: req.user._id,
     })
-      .populate("members", "_id username")
+      .populate("members", "_id username profilePicture")
       .sort({ updatedAt: -1 })
       .lean();
 
@@ -48,17 +57,9 @@ router.get("/", requireAuth, async (req, res, next) => {
 
     res.json({
       groups: groups.map((group) => ({
-  id: group._id.toString(),
-  name: group.name,
-  latestMessage: activity.get(String(group._id)) || null,
-  creatorId: group.creator.toString(),
-  background: group.background || "default",
-  members: group.members.map((member) => ({
-    id: member._id.toString(),
-    username: member.username,
-    nickname: group.nicknames?.[String(member._id)] ?? "",
-  })),
-})),
+        ...groupSummary(group),
+        latestMessage: activity.get(String(group._id)) || null,
+      })),
     });
   } catch (error) {
     next(error);
@@ -162,20 +163,11 @@ router.post("/", requireAuth, async (req, res, next) => {
     });
 
     const savedGroup = await Group.findById(group._id)
-      .populate("members", "_id username")
+      .populate("members", "_id username profilePicture")
       .lean();
 
     res.status(201).json({
-      group: {
-        id: savedGroup._id.toString(),
-        name: savedGroup.name,
-        creatorId: savedGroup.creator.toString(),
-        background: savedGroup.background || "default",
-        members: savedGroup.members.map((member) => ({
-          id: member._id.toString(),
-          username: member.username,
-        })),
-      },
+      group: groupSummary(savedGroup),
     });
   } catch (error) {
     next(error);
@@ -329,11 +321,12 @@ router.patch("/:groupId/members", requireAuth, async (req, res, next) => {
       });
     }
 
-    // Only the group creator can add members.
-    const group = await Group.findOne({
+    const permission = {
       _id: groupId,
-      creator: req.user._id,
-    });
+      members: req.user._id,
+      $or: [{ creator: req.user._id }, { admins: req.user._id }],
+    };
+    const group = await Group.findOne(permission).lean();
 
     if (!group) {
       return res.status(404).json({
@@ -372,38 +365,60 @@ router.patch("/:groupId/members", requireAuth, async (req, res, next) => {
       });
     }
 
-    group.members.push(...newMemberIds);
-    await group.save();
+    const updated = await Group.findOneAndUpdate(
+      {
+        ...permission,
+        $expr: {
+          $lte: [
+            { $size: { $setUnion: ["$members", users.map((user) => user._id)] } },
+            50,
+          ],
+        },
+      },
+      { $addToSet: { members: { $each: users.map((user) => user._id) } } },
+      { new: false }
+    ).lean();
 
-    const updatedGroup = await Group.findById(group._id)
-      .populate("members", "_id username")
-      .lean();
-
-    const result = {
-      id: updatedGroup._id.toString(),
-      name: updatedGroup.name,
-      creatorId: updatedGroup.creator.toString(),
-      background: updatedGroup.background || "default",
-      members: updatedGroup.members.map((member) => ({
-        id: member._id.toString(),
-        username: member.username,
-      })),
-    };
-
-    // Notify existing and newly added members.
-    const io = req.app.get("io");
-
-    for (const member of updatedGroup.members) {
-      io?.to(`user:${member._id.toString()}`).emit(
-        "group:members:updated",
-        { group: result }
-      );
+    if (!updated) {
+      return res.status(409).json({ message: "Group membership or permissions changed. Try again." });
     }
 
-    return res.json({
-      message: "Members added successfully.",
-      group: result,
-    });
+    const added = users.filter((user) => !updated.members.some((id) => id.equals(user._id)));
+    const io = req.app.get("io");
+    const result = await publishGroupMembers(io, group._id);
+    if (added.length) {
+      const actor = req.user.username || "A group member";
+      const names = added.map((user) => user.username).join(", ");
+      await postGroupNotice(io, {
+        _id: group._id,
+        members: result.group.members.map((member) => member.id),
+      }, req.user, `${actor} added ${names} to the group.`);
+    }
+
+    return res.json(result);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/:groupId/admins/:memberId", requireAuth, async (req, res, next) => {
+  try {
+    const { groupId, memberId } = req.params;
+    const { admin } = req.body ?? {};
+    if (!mongoose.isValidObjectId(groupId) || !mongoose.isValidObjectId(memberId) ||
+        typeof admin !== "boolean" || req.user._id.equals(memberId)) {
+      return res.status(400).json({ message: "Choose another group member and a valid role." });
+    }
+
+    const result = await Group.updateOne(
+      { _id: groupId, creator: req.user._id, members: memberId },
+      admin ? { $addToSet: { admins: memberId } } : { $pull: { admins: memberId } }
+    );
+    if (!result.matchedCount) {
+      return res.status(403).json({ message: "Only the group creator can manage existing members’ admin roles." });
+    }
+
+    return res.json(await publishGroupMembers(req.app.get("io"), groupId));
   } catch (error) {
     next(error);
   }

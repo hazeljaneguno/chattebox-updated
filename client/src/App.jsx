@@ -133,6 +133,11 @@ function updateGroupCallHistory(chats, call, ended = false) {
   });
 }
 
+async function findPeopleForGroup(search) {
+  const { users } = await api.users(search);
+  return Array.isArray(users) ? users : [];
+}
+
 export default function App() {
   // =========================
   // 1. USER AND CHAT STATE
@@ -157,6 +162,7 @@ export default function App() {
   const [loadingRequests, setLoadingRequests] = useState(false);
   const [showMessageRequests, setShowMessageRequests] = useState(false);
 const [showChatDetails, setShowChatDetails] = useState(false);
+  const [detailsStartPage, setDetailsStartPage] = useState("home");
 const [messageJump, setMessageJump] = useState(null);
   // =========================
   // 3. NOTIFICATION STATE
@@ -314,6 +320,28 @@ const [callMessageNotifications, setCallMessageNotifications] = useState({});
     setChats((previous) => previous.map((chat) => chat.isGroup ? updateGroup(chat) : chat));
   }, [setGroups, setChats]);
 
+  const applyGroupPicture = useCallback(({ groupId, profilePicture } = {}) => {
+    if (!groupId || typeof profilePicture !== "string") return;
+    const update = (group) => sameId(group.id, groupId) ? { ...group, profilePicture } : group;
+    setGroups((previous) => previous.map(update));
+    setChats((previous) => previous.map((chat) => chat.isGroup ? update(chat) : chat));
+  }, [setGroups, setChats]);
+
+  const applyUserPicture = useCallback(({ userId, profilePicture } = {}) => {
+    if (!userId || typeof profilePicture !== "string") return;
+    const updatePerson = (person) => sameId(person?.id ?? person?._id ?? person?.userId, userId)
+      ? { ...person, profilePicture }
+      : person;
+    const updateGroup = (group) => ({
+      ...group,
+      members: group.members?.map(updatePerson),
+    });
+    setUser(updatePerson);
+    setGroups((previous) => previous.map(updateGroup));
+    setChats((previous) => previous.map((chat) => chat.isGroup ? updateGroup(chat) : updatePerson(chat)));
+    setSearchResults((previous) => previous.map(updatePerson));
+  }, [setGroups, setChats]);
+
   const applyGroupMembers = useCallback(({ group } = {}) => {
     if (!group?.id || !Array.isArray(group.members)) return;
 
@@ -328,8 +356,14 @@ const [callMessageNotifications, setCallMessageNotifications] = useState({});
   useEffect(() => {
     if (!socket) return;
     socket.on("group:members:updated", applyGroupMembers);
-    return () => socket.off("group:members:updated", applyGroupMembers);
-  }, [socket, applyGroupMembers]);
+    socket.on("group:profile-picture:updated", applyGroupPicture);
+    socket.on("user:profile-picture:updated", applyUserPicture);
+    return () => {
+      socket.off("group:members:updated", applyGroupMembers);
+      socket.off("group:profile-picture:updated", applyGroupPicture);
+      socket.off("user:profile-picture:updated", applyUserPicture);
+    };
+  }, [socket, applyGroupMembers, applyGroupPicture, applyUserPicture]);
 
   const conversationChat = useMemo(() => {
     if (!activeChat?.isGroup || !Array.isArray(activeChat.members)) return activeChat;
@@ -3070,7 +3104,10 @@ const typingMessage =
   setShowMessageRequests={setShowMessageRequests}
 
   // NEW: Open Chat Information
-  onOpenChatDetails={() => setShowChatDetails(true)}
+  onOpenChatDetails={() => {
+    setDetailsStartPage("home");
+    setShowChatDetails(true);
+  }}
 />
 
 
@@ -3078,6 +3115,15 @@ const typingMessage =
   <ChatDetails
     key={`details:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
     chat={activeChat}
+    initialPage={detailsStartPage}
+    onSaveGroupPicture={async (chat, file) => {
+      const form = new FormData();
+      form.append("file", file);
+      applyGroupPicture(await api.uploadGroupPicture(chat.id, form));
+    }}
+    onSetGroupAdmin={async (chat, memberId, admin) => {
+      applyGroupMembers(await api.setGroupAdmin(chat.id, memberId, admin));
+    }}
     showTypingIndicator={showTypingIndicator}
     onTypingIndicatorChange={handleTypingPreferenceChange}
     onJumpToMessage={(id) => {
@@ -3085,10 +3131,7 @@ const typingMessage =
       setShowChatDetails(false);
     }}
     currentUserId={user?.id ?? user?._id ?? user?.userId}
-    onFindGroupMembers={async () => {
-      const { users } = await api.users();
-      return Array.isArray(users) ? users : [];
-    }}
+    onFindGroupMembers={findPeopleForGroup}
     onAddGroupMember={async (chat, memberId) => {
       const update = await api.addGroupMembers(chat.id ?? chat._id, [memberId]);
       applyGroupMembers(update);
@@ -3164,6 +3207,15 @@ onAction={async (action, payload) => {
 
 
 <ConversationBody
+  key={`${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
+  forwardChats={chats}
+  onForwarded={() => showNotice("Message forwarded.")}
+  onAddGroupMembers={activeChat.isGroup && [
+    activeChat.creatorId, ...(activeChat.adminIds || []),
+  ].some((id) => sameId(id, user.id ?? user._id ?? user.userId)) ? () => {
+    setDetailsStartPage("addMembers");
+    setShowChatDetails(true);
+  } : undefined}
   pendingPhotos={pendingPhotos}
   receiptSocket={socketStatus === "connected" ? socket : null}
   activeChat={conversationChat}
@@ -3313,7 +3365,7 @@ onAction={async (action, payload) => {
         isOpen={showSettings}
         user={user}
         onProfilePictureChange={(profilePicture) =>
-          setUser((current) => current ? { ...current, profilePicture } : current)
+          applyUserPicture({ userId: user.id ?? user._id ?? user.userId, profilePicture })
         }
         onMessageRequests={() => {
           setShowSettings(false);
