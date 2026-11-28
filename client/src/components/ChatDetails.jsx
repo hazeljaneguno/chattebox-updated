@@ -118,6 +118,8 @@ export default function ChatDetails({
   onSetGroupMemberAddPolicy,
   online = false,
   showActiveStatus = true,
+  onEnableActiveStatus,
+  savingActiveStatus = false,
   showTypingIndicator = true,
   onTypingIndicatorChange,
   onJumpToMessage,
@@ -136,6 +138,12 @@ export default function ChatDetails({
   const [nickname, setNickname] = useState("");
   const [nicknameMember, setNicknameMember] = useState(null);
   const nicknameDialogRef = useRef(null);
+  const activeStatusDialogRef = useRef(null);
+  useEffect(() => {
+    if (showActiveStatus && activeStatusDialogRef.current?.open) {
+      activeStatusDialogRef.current.close();
+    }
+  }, [showActiveStatus]);
   useEffect(() => {
     if (nicknameMember && !nicknameDialogRef.current?.open) nicknameDialogRef.current?.showModal();
   }, [nicknameMember]);
@@ -597,7 +605,7 @@ export default function ChatDetails({
               {/* CENTERED PROFILE */}
               <div className="chat-details-profile">
                 <div className="chat-details-avatar">
-                  <Avatar name={name} photo={chat.profilePicture} />
+                  <Avatar name={name} photo={chat.profilePicture} online={!isGroup && showActiveStatus && online} />
                 </div>
                 {isGroup && onSaveGroupPicture && (
                   <>
@@ -613,15 +621,35 @@ export default function ChatDetails({
 
                 <h2>{name}</h2>
 
-                <p>
-                  {isGroup
-                    ? `${chat.members?.length || 0} members`
-                    : !showActiveStatus
-                      ? "Active status hidden"
-                      : online
-                        ? "● Active now"
-                        : "Offline"}
-                </p>
+                {isGroup ? (
+                  <p>{chat.members?.length || 0} members</p>
+                ) : showActiveStatus ? (
+                  <p>{online ? "● Active now" : "Offline"}</p>
+                ) : (
+                  <button type="button" className="chat-active-status-trigger" aria-haspopup="dialog"
+                    onClick={() => activeStatusDialogRef.current?.showModal()}>
+                    Turn on Active Status
+                  </button>
+                )}
+                {!isGroup && (
+                  <dialog ref={activeStatusDialogRef} className="chat-active-status-dialog"
+                    aria-labelledby="chat-active-status-heading"
+                    onClick={(event) => {
+                      if (event.target === event.currentTarget) event.currentTarget.close();
+                    }}>
+                    <div className="chat-active-status-sheet">
+                      <span className="chat-active-status-symbol" aria-hidden="true"><UserRound size={30} /></span>
+                      <h3 id="chat-active-status-heading">Share your Active Status</h3>
+                      <p>See who’s online and let others see when you’re active.</p>
+                      <div className="chat-active-status-actions">
+                        <button type="button" disabled={savingActiveStatus} onClick={onEnableActiveStatus}>
+                          {savingActiveStatus ? "Turning on…" : "Turn on Active Status"}
+                        </button>
+                        <button type="button" onClick={() => activeStatusDialogRef.current?.close()}>Not now</button>
+                      </div>
+                    </div>
+                  </dialog>
+                )}
               </div>
 
               {/* FOUR QUICK ACTIONS */}

@@ -510,3 +510,60 @@
   outline: 2px solid var(--inbox-accent);
   outline-offset: -2px;
 }
+
+.chatterbox-sidebar .people-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline: 16px;
+}
+
+.people-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  margin-bottom: 8px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: var(--inbox-surface);
+  color: var(--inbox-text);
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.people-status > span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--inbox-muted);
+}
+
+.people-status > span.is-enabled { background: #24a361; }
+
+.people-empty {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  flex: 1 0 auto;
+  gap: 10px;
+  padding: 24px 12px 40px;
+  color: var(--inbox-text);
+  text-align: center;
+}
+
+.people-empty h2, .people-empty p { margin: 0; }
+.people-empty h2 { font-size: 18px; }
+.people-empty p { max-width: 32ch; color: var(--inbox-muted); }
+
+.people-empty button {
+  padding: 10px 16px;
+  border: 1px solid var(--inbox-rule);
+  border-radius: 12px;
+  background: var(--inbox-surface);
+  color: var(--inbox-accent);
+  font-weight: 650;
+}
+
+.people-contact { flex-shrink: 0; text-align: left; }
+.people-contact .conversation-copy { gap: 3px; }

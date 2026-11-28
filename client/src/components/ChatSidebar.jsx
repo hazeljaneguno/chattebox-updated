@@ -26,6 +26,9 @@ export default function ChatSidebar({
   chatFilter,
   setChatFilter,
   onlineIds,
+  showActiveStatus,
+  onEnableActiveStatus,
+  savingActiveStatus,
   socketStatus,
   menuOpen,
   setMenuOpen,
@@ -62,9 +65,9 @@ export default function ChatSidebar({
   }
 
   return (
-    <aside className="sidebar chatterbox-sidebar" aria-label="Chats">
+    <aside className="sidebar chatterbox-sidebar" aria-label={activeTab ? "People" : "Chats"}>
       <header className="brand-row">
-        <h1 className="brand-name">Chatter<span>box</span></h1>
+        <h1 className="brand-name">{activeTab ? "People" : <>Chatter<span>box</span></>}</h1>
         <button
           type="button"
           className="icon-button"
@@ -75,39 +78,71 @@ export default function ChatSidebar({
         </button>
       </header>
 
-      <label className="search-box">
-        <Search size={18} />
-        <input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search conversations"
-          aria-label="Search conversations"
-        />
-      </label>
+      {!activeTab && (
+        <label className="search-box">
+          <Search size={18} />
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search conversations"
+            aria-label="Search conversations"
+          />
+        </label>
+      )}
 
-      <div className="conversation-list">
-        <div className="sidebar-people" aria-label="Profile and online contacts">
-          <button type="button" onClick={openSettings}>
-            <Avatar
-              name={user.username}
-              photo={user.profilePicture}
-              online={socketStatus === "connected"}
-            />
-            <span>My profile</span>
-          </button>
-          {onlineChats.map((chat) => (
-            <button
-              type="button"
-              key={chat.id}
-              onClick={() => selectChat(chat)}
-            >
-              <Avatar name={chat.username || chat.name} photo={chat.profilePicture} online />
-              <span>{chat.username || chat.name}</span>
+      {activeTab ? (
+        <section className="conversation-list people-panel" aria-label="Active contacts">
+          <div className="people-status">
+            <span aria-hidden="true" className={showActiveStatus ? "is-enabled" : ""} />
+            {showActiveStatus ? `${onlineChats.length} active` : "Active Status is off"}
+          </div>
+          {!showActiveStatus ? (
+            <div className="people-empty">
+              <h2>See who’s online</h2>
+              <p>Turn on Active Status to see who’s online and let them see when you’re active.</p>
+              <button type="button" disabled={savingActiveStatus} onClick={onEnableActiveStatus}>
+                {savingActiveStatus ? "Turning on…" : "Turn on Active Status"}
+              </button>
+            </div>
+          ) : onlineChats.length ? (
+            onlineChats.map((chat) => (
+              <button type="button" key={chat.id} className="conversation people-contact" onClick={() => selectChat(chat)}>
+                <Avatar name={chat.username || chat.name} photo={chat.profilePicture} online />
+                <span className="conversation-copy">
+                  <strong>{chat.username || chat.name}</strong>
+                  <span className="last-message">Active now</span>
+                </span>
+              </button>
+            ))
+          ) : (
+            <div className="people-empty">
+              <h2>{socketStatus === "connected" ? "No contacts online" : "Connecting…"}</h2>
+            </div>
+          )}
+        </section>
+      ) : (
+        <div className="conversation-list">
+          <div className="sidebar-people" aria-label="Profile and online contacts">
+            <button type="button" onClick={openSettings}>
+              <Avatar
+                name={user.username}
+                photo={user.profilePicture}
+                online={showActiveStatus && socketStatus === "connected"}
+              />
+              <span>My profile</span>
             </button>
-          ))}
-        </div>
+            {onlineChats.map((chat) => (
+              <button
+                type="button"
+                key={chat.id}
+                onClick={() => selectChat(chat)}
+              >
+                <Avatar name={chat.username || chat.name} photo={chat.profilePicture} online />
+                <span>{chat.username || chat.name}</span>
+              </button>
+            ))}
+          </div>
 
-        {!activeTab && (
           <div className="chat-filters" aria-label="Conversation filters">
             <button
               type="button"
@@ -135,58 +170,58 @@ export default function ChatSidebar({
               Groups
             </button>
           </div>
-        )}
 
-        {filteredChats.map((chat) => {
-          const last = latestChatMessage(chat);
-          const typingUsers = typingByChat?.get(typingChatKey(chat.id, chat.isGroup));
-          const isTyping = Boolean(typingUsers?.length);
+          {filteredChats.map((chat) => {
+            const last = latestChatMessage(chat);
+            const typingUsers = typingByChat?.get(typingChatKey(chat.id, chat.isGroup));
+            const isTyping = Boolean(typingUsers?.length);
 
-          return (
-            <button
-              key={chat.id}
-              className={`conversation ${
-                sameId(activeId, chat.id) ? "conversation-active" : ""
-              } ${chat.unread > 0 ? "conversation-unread" : ""}`}
-              onClick={() => selectChat(chat)}
-            >
-              <Avatar
-                name={chat.username || chat.name}
-                photo={chat.profilePicture}
-                online={!chat.isGroup && onlineIds.has(String(chat.id))}
-              />
+            return (
+              <button
+                key={chat.id}
+                className={`conversation ${
+                  sameId(activeId, chat.id) ? "conversation-active" : ""
+                } ${chat.unread > 0 ? "conversation-unread" : ""}`}
+                onClick={() => selectChat(chat)}
+              >
+                <Avatar
+                  name={chat.username || chat.name}
+                  photo={chat.profilePicture}
+                  online={!chat.isGroup && onlineIds.has(String(chat.id))}
+                />
 
-              <span className="conversation-copy">
-                <span className="conversation-top">
-                  <strong>{chat.username || chat.name}</strong>
-                  <time dateTime={last?.createdAt}>{formatChatDate(last?.createdAt)}</time>
-                </span>
-
-                <span className="conversation-bottom">
-                  <span className={isTyping ? "last-message is-typing" : "last-message"}>
-                    {isTyping ? "Typing…" : last
-                      ? `${sameId(last.senderId, user.id) ? "You: " : ""}${getReplyPreview(last)}`
-                      : chat.isGroup
-                        ? "Start a group conversation"
-                        : chat.email || "Start a conversation"}
+                <span className="conversation-copy">
+                  <span className="conversation-top">
+                    <strong>{chat.username || chat.name}</strong>
+                    <time dateTime={last?.createdAt}>{formatChatDate(last?.createdAt)}</time>
                   </span>
 
-                  {chat.unread > 0 && (
-                    <span className="unread-count">{chat.unread}</span>
-                  )}
-                </span>
-              </span>
-            </button>
-          );
-        })}
+                  <span className="conversation-bottom">
+                    <span className={isTyping ? "last-message is-typing" : "last-message"}>
+                      {isTyping ? "Typing…" : last
+                        ? `${sameId(last.senderId, user.id) ? "You: " : ""}${getReplyPreview(last)}`
+                        : chat.isGroup
+                          ? "Start a group conversation"
+                          : chat.email || "Start a conversation"}
+                    </span>
 
-        {filteredChats.length === 0 && (
-          <div className="empty-search">
-            <Users size={23} />
-            <strong>{activeTab && !search.trim() ? "No contacts online" : "No matching chats"}</strong>
-          </div>
-        )}
-      </div>
+                    {chat.unread > 0 && (
+                      <span className="unread-count">{chat.unread}</span>
+                    )}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+
+          {filteredChats.length === 0 && (
+            <div className="empty-search">
+              <Users size={23} />
+              <strong>No matching chats</strong>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="sidebar-nav-wrap">
         {menuOpen && (
@@ -229,7 +264,7 @@ export default function ChatSidebar({
             }}
           >
             <span className="sidebar-nav-icon"><Users size={21} /></span>
-            <span>Active</span>
+            <span>People</span>
           </button>
           <button
             type="button"

@@ -178,7 +178,7 @@ const [messageJump, setMessageJump] = useState(null);
   // 4. CHAT AND SOCKET STATE
   // =========================
 
-  const [onlineIds, setOnlineIds] = useState(() => new Set());
+  const [connectedPresenceIds, setConnectedPresenceIds] = useState(() => new Set());
   const [socketStatus, setSocketStatus] = useState("connecting");
 
   const [socket, setSocket] = useState(null);
@@ -223,7 +223,11 @@ const [messageJump, setMessageJump] = useState(null);
   const [theme, setTheme] = useState("light");
   const [savingTheme, setSavingTheme] = useState(false);
 
-  const [showActiveStatus, setShowActiveStatus] = useState(true);
+  const showActiveStatus = user?.showActiveStatus !== false;
+  const onlineIds = useMemo(
+    () => showActiveStatus ? connectedPresenceIds : new Set(),
+    [showActiveStatus, connectedPresenceIds]
+  );
   const [savingActiveStatus, setSavingActiveStatus] = useState(false);
 
   const [backgroundPickerOpen, setBackgroundPickerOpen] = useState(false);
@@ -865,7 +869,6 @@ function clearCallMessageNotifications(chatId) {
     user,
     activeIdRef,
     setChats,
-    setOnlineIds,
   });
 
   // =========================
@@ -2019,11 +2022,54 @@ useEffect(() => {
   };
 }, [activeChat?.id, activeChat?.isGroup, socket]);
 
-useEffect(() => {
-  if (!user) return;
+  useEffect(() => {
+    if (!socket) return;
 
-  setShowActiveStatus(user.showActiveStatus ?? true);
-}, [user]);
+    function requestPresence() {
+      socket.emit("presence:request");
+    }
+
+    function applySnapshot(ids) {
+      setConnectedPresenceIds(new Set(ids.map(String)));
+    }
+
+    function updatePresence({ userId, isOnline }) {
+      setConnectedPresenceIds((previous) => {
+        const next = new Set(previous);
+        if (isOnline) next.add(String(userId));
+        else next.delete(String(userId));
+        return next;
+      });
+    }
+
+    function updateVisibility(enabled) {
+      setUser((previous) => previous && previous.showActiveStatus !== enabled
+        ? { ...previous, showActiveStatus: enabled }
+        : previous
+      );
+      if (!enabled) clearPresence();
+    }
+
+    function clearPresence() {
+      setConnectedPresenceIds(new Set());
+    }
+
+    socket.on("presence:snapshot", applySnapshot);
+    socket.on("presence:update", updatePresence);
+    socket.on("presence:visibility", updateVisibility);
+    socket.on("connect", requestPresence);
+    socket.on("disconnect", clearPresence);
+    if (socket.connected) requestPresence();
+
+    return () => {
+      socket.off("presence:snapshot", applySnapshot);
+      socket.off("presence:update", updatePresence);
+      socket.off("presence:visibility", updateVisibility);
+      socket.off("connect", requestPresence);
+      socket.off("disconnect", clearPresence);
+      clearPresence();
+    };
+  }, [socket]);
   // =========================
   // 25. ACTIVE STATUS
   // =========================
@@ -2036,7 +2082,10 @@ useEffect(() => {
     try {
       const data = await api.updateActiveStatus(nextValue);
 
-      setShowActiveStatus(data.showActiveStatus);
+      setUser((previous) => previous && sameId(previous.id, user.id)
+        ? { ...previous, showActiveStatus: data.showActiveStatus }
+        : previous
+      );
     } catch (error) {
       console.error("Active Status update failed:", error);
       alert(error.message);
@@ -2063,8 +2112,7 @@ useEffect(() => {
       const matchesFilter =
         chatFilter === "all" ||
         (chatFilter === "unread" && (chat.unread || 0) > 0) ||
-        (chatFilter === "groups" && chat.isGroup === true) ||
-        (chatFilter === "active" && !chat.isGroup && onlineIds.has(String(chat.id)));
+        (chatFilter === "groups" && chat.isGroup === true);
 
       return matchesSearch && matchesFilter;
     });
@@ -2072,7 +2120,7 @@ useEffect(() => {
       .map((chat) => ({ chat, timestamp: messageTimestamp(latestChatMessage(chat)) }))
       .sort((a, b) => b.timestamp - a.timestamp)
       .map(({ chat }) => chat);
-  }, [chats, search, chatFilter, onlineIds]);
+  }, [chats, search, chatFilter]);
 
   // =========================
   // 27. ACTIVE CHAT REF
@@ -2795,7 +2843,7 @@ async function handleLogout() {
   setChats([]);
   setGroups([]);
   setActiveId("");
-  setOnlineIds(new Set());
+  setConnectedPresenceIds(new Set());
 
   // 6. Clear notification data.
   pendingNotificationRef.current = null;
@@ -3044,6 +3092,9 @@ const typingMessage =
           chatFilter={chatFilter}
           setChatFilter={setChatFilter}
           onlineIds={onlineIds}
+          showActiveStatus={showActiveStatus}
+          onEnableActiveStatus={() => handleActiveStatusChange(true)}
+          savingActiveStatus={savingActiveStatus}
           socketStatus={socketStatus}
           menuOpen={menuOpen}
           setMenuOpen={setMenuOpen}
@@ -3113,6 +3164,9 @@ const typingMessage =
     key={`details:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
     chat={activeChat}
     initialPage={detailsStartPage}
+    showActiveStatus={showActiveStatus}
+    onEnableActiveStatus={() => handleActiveStatusChange(true)}
+    savingActiveStatus={savingActiveStatus}
     onSaveGroupPicture={async (chat, file) => {
       const form = new FormData();
       form.append("file", file);

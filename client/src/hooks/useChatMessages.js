@@ -7,7 +7,6 @@ export default function useChatMessages({
   user,
   activeIdRef,
   setChats,
-  setOnlineIds,
 }) {
   useEffect(() => {
     if (!socket || !user) return;
@@ -126,27 +125,11 @@ export default function useChatMessages({
       );
     }
 
-    // Receive online/offline updates.
-    function handlePresenceUpdate({ userId, isOnline }) {
-      setOnlineIds((previous) => {
-        const next = new Set(previous);
-
-        if (isOnline) {
-          next.add(String(userId));
-        } else {
-          next.delete(String(userId));
-        }
-
-        return next;
-      });
-    }
-
     socket.on("message:new", handleDirectMessage);
     socket.on("group:message:new", handleGroupMessage);
     socket.on("message:updated", handleMessageUpdated);
     socket.on("message:receipt", handleReceipt);
     socket.on("group:message:receipt", handleReceipt);
-    socket.on("presence:update", handlePresenceUpdate);
 
     return () => {
       socket.off("message:new", handleDirectMessage);
@@ -154,7 +137,6 @@ export default function useChatMessages({
       socket.off("message:updated", handleMessageUpdated);
       socket.off("message:receipt", handleReceipt);
       socket.off("group:message:receipt", handleReceipt);
-      socket.off("presence:update", handlePresenceUpdate);
     };
-  }, [socket, user, activeIdRef, setChats, setOnlineIds]);
+  }, [socket, user, activeIdRef, setChats]);
 }
