@@ -1,5 +1,9 @@
+
 import { firebaseMessaging } from "../firebase.js";
 import User from "../models/User.js";
+import ChatNotificationPreference, {
+  notificationPreferenceKey,
+} from "../models/ChatNotificationPreference.js";
 
 // ==========================================
 // INVALID FCM TOKEN CODES
@@ -130,6 +134,19 @@ export async function sendPushNotification(
     // SEND NOTIFICATIONS
     // ========================================
 
+    const groupMessage = data?.type === "group_message";
+    const privateMessage = ["private_message", "message_request"].includes(data?.type);
+    const chatId = groupMessage ? data.groupId : privateMessage ? data.senderId : null;
+    const preferences = chatId
+      ? await ChatNotificationPreference.findById(
+          notificationPreferenceKey(user._id, groupMessage ? "group" : "private", chatId)
+        ).lean()
+      : null;
+    if (preferences?.muted) {
+      return { success: true, successCount: 0, failureCount: 0, reason: "muted" };
+    }
+    const silent = preferences?.soundsEnabled === false;
+
     let successCount = 0;
     let failureCount = 0;
 
@@ -151,9 +168,9 @@ export async function sendPushNotification(
           android: {
             priority: "high",
             notification: {
-              channelId: "messages",
-              sound: "default",
-              priority: "high",
+              channelId: silent ? "messages_silent" : "messages",
+              ...(!silent && { sound: "default" }),
+              priority: silent ? "low" : "high",
             },
           },
         });

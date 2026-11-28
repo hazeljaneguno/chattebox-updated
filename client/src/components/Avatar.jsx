@@ -1,3 +1,5 @@
+import { getAttachmentUrl } from "../utils/messageHelpers.js";
+
 export function initials(name = "") {
   return (
     name
@@ -24,6 +26,7 @@ export default function Avatar({
   name = "",
   online = false,
   small = false,
+  photo,
 }) {
   return (
     <div
@@ -32,6 +35,8 @@ export default function Avatar({
       }`}
     >
       {initials(name)}
+      {photo && <img className="chatterbox-avatar-photo" key={photo} src={getAttachmentUrl({ url: photo })}
+        alt="" onError={(event) => { event.currentTarget.hidden = true; }} />}
       {online && <span className="online-dot" />}
     </div>
   );

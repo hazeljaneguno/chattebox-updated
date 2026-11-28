@@ -1,5 +1,7 @@
+import { api } from "../api.js";
+import preparePhoto from "../utils/preparePhoto.js";
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, AtSign, Check, ChevronRight, CircleDot, Inbox, LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { ArrowLeft, AtSign, Camera, Check, ChevronRight, CircleDot, Inbox, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { initials } from "./Avatar.jsx";
 import { getAttachmentUrl } from "../utils/messageHelpers.js";
 import "./SettingsModal.css";
@@ -22,21 +24,25 @@ function SettingsRow({ icon: Icon, label, detail, onClick, end, ...attributes })
 export default function SettingsModal({
   isOpen, onClose, user, theme, onThemeChange, savingTheme = false,
   showActiveStatus = true, onActiveStatusChange, savingActiveStatus = false,
-  onMessageRequests, onLogout,
+  onMessageRequests, onLogout, onProfilePictureChange,
 }) {
   if (!isOpen) return null;
   return <OpenSettings {...{
     onClose, user, theme, onThemeChange, savingTheme, showActiveStatus,
-    onActiveStatusChange, savingActiveStatus, onMessageRequests, onLogout,
+    onActiveStatusChange, savingActiveStatus, onMessageRequests, onLogout, onProfilePictureChange,
   }} />;
 }
 
 function OpenSettings({
   onClose, user, theme, onThemeChange, savingTheme,
   showActiveStatus, onActiveStatusChange, savingActiveStatus,
-  onMessageRequests, onLogout,
+  onMessageRequests, onLogout, onProfilePictureChange,
 }) {
   const [page, setPage] = useState("Settings");
+  const picker = useRef(null);
+  const savingPhotoRef = useRef(false);
+  const [savingPhoto, setSavingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
   const dialog = useRef(null);
   const body = useRef(null);
   const username = user?.username || "";
@@ -54,6 +60,29 @@ function OpenSettings({
     if (body.current) body.current.scrollTop = 0;
   }, [page]);
 
+  async function changePhoto(event) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = "";
+    if (!file || savingPhotoRef.current) return;
+
+    savingPhotoRef.current = true;
+    setSavingPhoto(true);
+    setPhotoError("");
+    try {
+      const photo = await preparePhoto(file);
+      const form = new FormData();
+      form.append("file", photo);
+      const { profilePicture } = await api.uploadProfilePicture(form);
+      if (!profilePicture) throw new Error("The server did not return a profile photo.");
+      onProfilePictureChange?.(profilePicture);
+    } catch (error) {
+      setPhotoError(error.message || "Could not upload the photo.");
+    } finally {
+      savingPhotoRef.current = false;
+      setSavingPhoto(false);
+    }
+  }
+
   return (
     <dialog ref={dialog} className="chatterbox-settings" aria-labelledby="settings-title"
       onCancel={(event) => { event.preventDefault(); back(); }}>
@@ -66,11 +95,20 @@ function OpenSettings({
       <div className="settings-scroll" ref={body}>
         {page === "Settings" && <>
           <div className="settings-profile">
+            <div className="settings-avatar-picker">
             <span className="settings-profile-avatar" aria-hidden="true">
               {initials(name)}
-              {photo && <img src={getAttachmentUrl({ url: photo })} alt=""
+              {photo && <img key={photo} src={getAttachmentUrl({ url: photo })} alt=""
                 onError={(event) => { event.currentTarget.hidden = true; }} />}
             </span>
+            <input ref={picker} type="file" hidden accept="image/jpeg,image/png,image/webp" onChange={changePhoto} />
+            <button type="button" className="settings-camera" aria-label="Change profile photo"
+              disabled={savingPhoto} onClick={() => picker.current?.click()}>
+              <Camera size={18} aria-hidden="true" />
+            </button>
+            </div>
+            {savingPhoto && <span role="status">Saving photo…</span>}
+            {photoError && <span role="alert">{photoError}</span>}
             <h3>{name}</h3>
             {username && <span>@{username}</span>}
             <button type="button" onClick={() => setPage("Profile")}>View profile</button>

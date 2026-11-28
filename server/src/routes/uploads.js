@@ -46,7 +46,17 @@ const upload = multer({
   },
 });
 
-router.post("/", requireAuth, (req, res, next) => {
+router.post("/", requireAuth, receiveUpload);
+router.post("/profile-picture", requireAuth, receiveUpload);
+
+function isProfileImage({ buffer, mimetype }) {
+  if (mimetype === "image/jpeg") return buffer.subarray(0, 3).equals(Buffer.from([255, 216, 255]));
+  if (mimetype === "image/png") return buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  return mimetype === "image/webp" && buffer.toString("ascii", 0, 4) === "RIFF" &&
+    buffer.toString("ascii", 8, 12) === "WEBP";
+}
+
+function receiveUpload(req, res, next) {
   upload.single("file")(req, res, async (error) => {
     if (error) {
       const status = error instanceof multer.MulterError ? 400 : 415;
@@ -62,9 +72,19 @@ router.post("/", requireAuth, (req, res, next) => {
       return res.status(400).json({ message: "Please select a file." });
     }
 
+    const isProfilePicture = req.path === "/profile-picture";
+    if (isProfilePicture && !isProfileImage(req.file)) {
+      return res.status(415).json({ message: "Choose a JPEG, PNG, or WebP photo." });
+    }
+
     const filename = crypto.randomUUID() + uploadExtensions.get(req.file.mimetype);
     try {
       await saveAttachment(filename, req.file);
+      if (isProfilePicture) {
+        req.user.profilePicture = `/uploads/${filename}`;
+        await req.user.save();
+        return res.status(201).json({ profilePicture: req.user.profilePicture });
+      }
     } catch (error) {
       return next(error);
     }
@@ -78,6 +98,6 @@ router.post("/", requireAuth, (req, res, next) => {
       },
     });
   });
-});
+}
 
 export default router;

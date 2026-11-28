@@ -3310,6 +3310,9 @@ onAction={async (action, payload) => {
       <SettingsModal
         isOpen={showSettings}
         user={user}
+        onProfilePictureChange={(profilePicture) =>
+          setUser((current) => current ? { ...current, profilePicture } : current)
+        }
         onMessageRequests={() => {
           setShowSettings(false);
           setShowMessageRequests(true);

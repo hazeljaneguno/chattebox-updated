@@ -109,6 +109,7 @@ export default function ChatHeader({
       {/* CONTACT AVATAR */}
       <Avatar
         name={activeChat.username || activeChat.name}
+        photo={activeChat.profilePicture}
         online={!isGroup && isOnline}
         small
       />

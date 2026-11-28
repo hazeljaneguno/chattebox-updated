@@ -14,7 +14,7 @@ import { typingChatKey } from "../hooks/useTypingIndicator.js";
 import Avatar, { initials, colorFor } from "./Avatar.jsx";
 import { formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
 
-import { getReplyPreview } from "../utils/messageHelpers.js";
+import { getAttachmentUrl, getReplyPreview } from "../utils/messageHelpers.js";
 
 export default function ChatSidebar({
   user,
@@ -88,6 +88,9 @@ setShowSettings,
       <div className="profile-strip">
         <div className={`my-avatar ${colorFor(user.username)}`}>
           {initials(user.username)}
+          {user.profilePicture && <img className="chatterbox-avatar-photo" key={user.profilePicture}
+            src={getAttachmentUrl({ url: user.profilePicture })} alt=""
+            onError={(event) => { event.currentTarget.hidden = true; }} />}
           <span className="online-dot" />
         </div>
 
@@ -184,6 +187,7 @@ setShowSettings,
             >
               <Avatar
                 name={chat.username || chat.name}
+                photo={chat.profilePicture}
                 online={!chat.isGroup && onlineIds.has(String(chat.id))}
               />
 

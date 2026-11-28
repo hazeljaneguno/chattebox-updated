@@ -438,6 +438,9 @@ export const api = {
      FILE UPLOADS
   ======================================= */
 
+  uploadProfilePicture: (formData) =>
+    request("/api/uploads/profile-picture", { method: "POST", body: formData }),
+
   uploadFile: async (formData) => {
     if (!(formData instanceof FormData)) {
       throw new Error(

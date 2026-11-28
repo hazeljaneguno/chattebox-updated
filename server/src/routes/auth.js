@@ -30,6 +30,7 @@ function publicUser(user) {
   return {
     id: user._id.toString(),
     username: user.username,
+    profilePicture: user.profilePicture || "",
     email: user.email,
     role: user.role || "member",
     theme: user.theme || "light",
