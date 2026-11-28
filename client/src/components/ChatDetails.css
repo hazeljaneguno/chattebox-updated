@@ -477,7 +477,8 @@
   font-weight: 600;
 }
 
-.chat-details-form input {
+.chat-details-form input,
+.chat-details-form select {
   width: 100%;
   min-height: 44px;
 
@@ -498,7 +499,8 @@
   font: inherit;
 }
 
-.chat-details-form input:focus {
+.chat-details-form input:focus,
+.chat-details-form select:focus {
   outline: 2px solid var(--accent-color, #7555d8);
   outline-offset: 1px;
 }

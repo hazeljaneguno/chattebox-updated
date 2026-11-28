@@ -40,7 +40,7 @@ import {
 } from "./services/pushNotifications.js";
 
 import { api, connectSocket } from "./api.js";
-import { latestChatMessage, messageTimestamp, sameId } from "./utils/chatHelpers.js";
+import { canAddGroupMembers, latestChatMessage, messageTimestamp, sameId } from "./utils/chatHelpers.js";
 import useTypingIndicator from "./hooks/useTypingIndicator.js";
 import useMessageActions from "./hooks/useMessageActions.js";
 import useChatMessages from "./hooks/useChatMessages.js";
@@ -2857,6 +2857,7 @@ async function handleLogout() {
       const { group } = await api.createGroup({
         name,
         memberIds: selectedMemberIds,
+        memberAddPolicy: new FormData(event.currentTarget).get("memberAddPolicy") ?? "admins",
       });
 
       const newGroup = {
@@ -3028,14 +3029,10 @@ const typingMessage =
   // =========================
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell${showSettings ? " settings-open" : ""}`}>
 
       {/* CHAT SIDEBAR */}
-      <div
-        className={
-          mobileChatOpen ? "sidebar-hidden-mobile" : ""
-        }
-      >
+      <div className={`chat-sidebar-panel${mobileChatOpen ? " sidebar-hidden-mobile" : ""}`}>
         <ChatSidebar
           typingByChat={typingByChat}
           user={user}
@@ -3120,6 +3117,9 @@ const typingMessage =
       const form = new FormData();
       form.append("file", file);
       applyGroupPicture(await api.uploadGroupPicture(chat.id, form));
+    }}
+    onSetGroupMemberAddPolicy={async (chat, policy) => {
+      applyGroupMembers(await api.setGroupMemberAddPolicy(chat.id, policy));
     }}
     onSetGroupAdmin={async (chat, memberId, admin) => {
       applyGroupMembers(await api.setGroupAdmin(chat.id, memberId, admin));
@@ -3210,9 +3210,7 @@ onAction={async (action, payload) => {
   key={`${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
   forwardChats={chats}
   onForwarded={() => showNotice("Message forwarded.")}
-  onAddGroupMembers={activeChat.isGroup && [
-    activeChat.creatorId, ...(activeChat.adminIds || []),
-  ].some((id) => sameId(id, user.id ?? user._id ?? user.userId)) ? () => {
+  onAddGroupMembers={canAddGroupMembers(activeChat, user.id ?? user._id ?? user.userId) ? () => {
     setDetailsStartPage("addMembers");
     setShowChatDetails(true);
   } : undefined}
@@ -3360,7 +3358,7 @@ onAction={async (action, payload) => {
         selectChat={selectChat}
       />
 
-      {/* SETTINGS MODAL */}
+      {/* SETTINGS PANEL */}
       <SettingsModal
         isOpen={showSettings}
         user={user}

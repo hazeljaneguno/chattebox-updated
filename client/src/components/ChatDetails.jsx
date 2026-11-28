@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api, API_URL } from "../api.js";
 import { getAttachmentMediaType, getReplyPreview } from "../utils/messageHelpers.js";
-import { formatChatDate } from "../utils/chatHelpers.js";
+import { canAddGroupMembers, formatChatDate } from "../utils/chatHelpers.js";
 import { sharedMessageLinks } from "../utils/messageLinks.js";
 import {
   ArrowLeft,
@@ -115,6 +115,7 @@ export default function ChatDetails({
   initialPage = "home",
   onSaveGroupPicture,
   onSetGroupAdmin,
+  onSetGroupMemberAddPolicy,
   online = false,
   showActiveStatus = true,
   showTypingIndicator = true,
@@ -163,7 +164,8 @@ export default function ChatDetails({
   const pictureInput = useRef(null);
   const isCreator = currentUserId != null && String(chat?.creatorId) === String(currentUserId);
   const isAdmin = (id) => (chat?.adminIds || []).some((adminId) => String(adminId) === String(id));
-  const canAddMembers = isCreator || isAdmin(currentUserId);
+  const canAddMembers = canAddGroupMembers(chat, currentUserId);
+  const membersCanAdd = chat?.memberAddPolicy === "members";
 
   useEffect(() => {
     if (page !== "addMembers" || !canAddMembers || !onFindGroupMembers) return;
@@ -408,6 +410,18 @@ export default function ChatDetails({
     }
   }
 
+  async function changeMemberAddPolicy(policy) {
+    setMemberError("");
+    setMemberSaving(true);
+    try {
+      await onSetGroupMemberAddPolicy(chat, policy);
+    } catch (error) {
+      setMemberError(error.message || "Could not change who can add members.");
+    } finally {
+      setMemberSaving(false);
+    }
+  }
+
   async function changeAdmin(memberId, admin) {
     setMemberSaving(true);
     setMemberError("");
@@ -631,7 +645,7 @@ export default function ChatDetails({
                     key={action}
                     type="button"
                     disabled={action === "addMembers" && (!canAddMembers || !onFindGroupMembers || !onAddGroupMember)}
-                    title={action === "addMembers" && !canAddMembers ? "Only the creator and group admins can add members" : undefined}
+                    title={action === "addMembers" && !canAddMembers ? "Only admins can add members" : undefined}
                     onClick={() => action === "addMembers" ? setPage("addMembers") : open(action)}
                   >
                     <span>
@@ -782,6 +796,21 @@ export default function ChatDetails({
           ) : page === "members" ? (
             <div className="chat-details-section">
               <h3>Members</h3>
+              {isCreator && onSetGroupMemberAddPolicy ? (
+                <label className="chat-details-form">
+                  Who can add members?
+                  <select
+                    value={membersCanAdd ? "members" : "admins"}
+                    disabled={memberSaving}
+                    onChange={(event) => changeMemberAddPolicy(event.target.value)}
+                  >
+                    <option value="admins">Admins only</option>
+                    <option value="members">Anyone in the group</option>
+                  </select>
+                </label>
+              ) : (
+                <p>{membersCanAdd ? "Anyone in the group can add members." : "Only admins can add members."}</p>
+              )}
               {memberError && <p role="alert">{memberError}</p>}
               {members.map((member) => {
                 const id = member.id ?? member._id;
@@ -790,7 +819,7 @@ export default function ChatDetails({
                 return (
                   <div className="chat-details-member-row" key={id}>
                     {memberProfile(member)}
-                    <small>{creator ? "Creator" : admin ? "Admin" : "Member"}</small>
+                    <small>{creator ? "Creator · Admin" : admin ? "Admin" : "Member"}</small>
                     {isCreator && !creator && onSetGroupAdmin && (
                       <button type="button" className="chat-details-photo-button" disabled={memberSaving}
                         onClick={() => changeAdmin(id, !admin)}>
@@ -813,7 +842,7 @@ export default function ChatDetails({
               )}
               {memberBusy && <p role="status">Working…</p>}
               {memberError && <p role="alert">{memberError}</p>}
-              {!canAddMembers && <p>Only the creator and group admins can add members.</p>}
+              {!canAddMembers && <p>Only admins can add members.</p>}
               {canAddMembers && !memberBusy && !memberError && availableMembers.length === 0 && (
                 <p>No additional people found.</p>
               )}

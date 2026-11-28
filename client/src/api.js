@@ -421,6 +421,12 @@ export const api = {
       }
     ),
 
+  setGroupMemberAddPolicy: (groupId, memberAddPolicy) =>
+    request(`/api/groups/${encodeURIComponent(groupId)}/member-add-policy`, {
+      method: "PATCH",
+      body: JSON.stringify({ memberAddPolicy }),
+    }),
+
   setGroupAdmin: (groupId, memberId, admin) =>
     request(`/api/groups/${encodeURIComponent(groupId)}/admins/${encodeURIComponent(memberId)}`, {
       method: "PATCH",

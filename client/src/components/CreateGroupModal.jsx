@@ -58,6 +58,14 @@ export default function CreateGroupModal({
           />
         </label>
 
+        <label className="group-field">
+          <span>Who can add members?</span>
+          <select name="memberAddPolicy" defaultValue="admins" disabled={savingGroup}>
+            <option value="admins">Admins only</option>
+            <option value="members">Anyone in the group</option>
+          </select>
+        </label>
+
         <p>Choose people to add to your group.</p>
 
         <label className="search-box modal-search">

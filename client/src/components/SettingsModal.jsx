@@ -43,7 +43,7 @@ function OpenSettings({
   const savingPhotoRef = useRef(false);
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [photoError, setPhotoError] = useState("");
-  const dialog = useRef(null);
+  const backButton = useRef(null);
   const body = useRef(null);
   const username = user?.username || "";
   const name = user?.displayName || user?.name || username || "Your account";
@@ -51,9 +51,7 @@ function OpenSettings({
   const back = page === "Settings" ? onClose : () => setPage("Settings");
 
   useLayoutEffect(() => {
-    const element = dialog.current;
-    if (element && !element.open) element.showModal();
-    return () => element?.close();
+    backButton.current?.focus();
   }, []);
 
   useLayoutEffect(() => {
@@ -84,10 +82,13 @@ function OpenSettings({
   }
 
   return (
-    <dialog ref={dialog} className="chatterbox-settings" aria-labelledby="settings-title"
-      onCancel={(event) => { event.preventDefault(); back(); }}>
-      <header className="settings-topbar">
-        <button type="button" onClick={back} aria-label={page === "Settings" ? "Close settings" : "Back to settings"}>
+    <section className="chatterbox-settings" aria-labelledby="settings-title"
+      onKeyDown={(event) => {
+        if (event.key === "Escape") back();
+      }}>
+      <header className="chat-details-topbar settings-topbar">
+        <button ref={backButton} className="chat-details-top-button" type="button" onClick={back}
+          aria-label={page === "Settings" ? "Back to chats" : "Back to settings"}>
           <ArrowLeft size={22} aria-hidden="true" />
         </button>
         <h2 id="settings-title">{page}</h2>
@@ -155,6 +156,6 @@ function OpenSettings({
           </section>
         )}
       </div>
-    </dialog>
+    </section>
   );
 }

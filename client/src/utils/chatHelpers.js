@@ -3,6 +3,16 @@ export function sameId(a, b) {
   return String(a) === String(b);
 }
 
+export function canAddGroupMembers(chat, userId) {
+  if (!chat?.isGroup || userId == null) return false;
+  if (sameId(chat.creatorId, userId)) return true;
+  if (!(chat.members || []).some((member) => sameId(member.id ?? member._id, userId))) {
+    return false;
+  }
+  return chat.memberAddPolicy === "members" ||
+    (chat.adminIds || []).some((id) => sameId(id, userId));
+}
+
 export function getTime(value) {
   return new Intl.DateTimeFormat("en", {
     hour: "numeric",
