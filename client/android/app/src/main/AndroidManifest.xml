@@ -33,6 +33,7 @@
         android:required="false" />
 
     <queries>
+        <package android:name="com.chatterbox.social" />
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
@@ -85,6 +86,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="chatterbox" android:host="open" />
+            </intent-filter>
         </activity>
 
         <!-- Messenger-style floating Chat Heads -->

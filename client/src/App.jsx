@@ -1,3 +1,4 @@
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   useCallback,
   useEffect,
@@ -138,6 +139,8 @@ async function findPeopleForGroup(search) {
   return Array.isArray(users) ? users : [];
 }
 
+const SocialBridge = registerPlugin("SocialBridge");
+
 export default function App() {
   // =========================
   // 1. USER AND CHAT STATE
@@ -184,7 +187,8 @@ const [messageJump, setMessageJump] = useState(null);
 
   const [socket, setSocket] = useState(null);
 
-  const [chatFilter, setChatFilter] = useState("social");
+  const [socialDestination, setSocialDestination] = useState(null);
+  const [chatFilter, setChatFilter] = useState("all");
   const [missedCalls, setMissedCalls] = useState([]);
 
   // =========================
@@ -2489,7 +2493,6 @@ useEffect(() => {
       unread: 0,
     });
 
-    setChatFilter((current) => current === "social" ? "all" : current);
     setActiveId(person.id);
     activeIdRef.current = person.id;
 
@@ -2507,6 +2510,55 @@ useEffect(() => {
       )
     );
   }
+
+useEffect(() => {
+  const url = new URL(window.location.href);
+  const receive = ({ id, name = "" }) => {
+    if (id === "inbox" || /^[a-f0-9]{24}$/i.test(id || "")) setSocialDestination({ id, name });
+  };
+  receive({ id: url.searchParams.get("socialChat"), name: url.searchParams.get("socialName") || "" });
+  if (url.searchParams.has("socialChat")) {
+    url.searchParams.delete("socialChat");
+    url.searchParams.delete("socialName");
+    window.history.replaceState(window.history.state, "", url);
+  }
+  if (Capacitor.getPlatform() !== "android") return;
+  let mounted = true;
+  const listener = SocialBridge.addListener("destination", (value) => { if (mounted) receive(value); });
+  listener.catch(() => {});
+  return () => {
+    mounted = false;
+    listener.then((handle) => handle.remove()).catch(() => {});
+  };
+}, []);
+
+useEffect(() => {
+  if (!user || !socialDestination) return;
+  let active = true;
+  async function openDestination() {
+    try {
+      setChatFilter("all");
+      if (socialDestination.id === "inbox") {
+        setActiveId("");
+        activeIdRef.current = "";
+        setMobileChatOpen(false);
+        return;
+      }
+      const existing = chatsRef.current.find((chat) => !chat.isGroup && sameId(chat.id, socialDestination.id));
+      const result = existing ? null : await api.users(socialDestination.name);
+      if (!active) return;
+      const person = existing || result?.users.find((item) => sameId(item.id, socialDestination.id));
+      if (person) selectChat(person);
+      else setError("This Chatterbox account could not be found.");
+    } catch (error) {
+      if (active) setError(error.message || "Could not open this conversation.");
+    } finally {
+      if (active) setSocialDestination(null);
+    }
+  }
+  void openDestination();
+  return () => { active = false; };
+}, [user, socialDestination, messageRequests]);
 
 // ==========================================
 // HANDLE PUSH NOTIFICATION TAPS
@@ -2876,7 +2928,7 @@ async function handleLogout() {
   // 7. Reset interface state.
   setMobileChatOpen(false);
   setMissedCalls([]);
-  setChatFilter("social");
+  setChatFilter("all");
   setShowCreateGroup(false);
   setSelectedMemberIds([]);
   setGroupName("");
@@ -3101,10 +3153,10 @@ const typingMessage =
   // =========================
 
   return (
-    <main className={`app-shell${showSettings ? " settings-open" : ""}${chatFilter === "social" ? " social-home-open" : ""}`}>
+    <main className={`app-shell${showSettings ? " settings-open" : ""}`}>
 
       {/* CHAT SIDEBAR */}
-      <div className={`chat-sidebar-panel${mobileChatOpen && chatFilter !== "social" ? " sidebar-hidden-mobile" : ""}`}>
+      <div className={`chat-sidebar-panel${mobileChatOpen ? " sidebar-hidden-mobile" : ""}`}>
         <ChatSidebar
           typingByChat={typingByChat}
           user={user}
@@ -3114,9 +3166,17 @@ const typingMessage =
           setSearch={setSearch}
           filteredChats={filteredChats}
           chatFilter={chatFilter}
-          setChatFilter={(tab) => {
-            if (tab === "social" || chatFilter === "social") setMobileChatOpen(false);
-            setChatFilter(tab);
+          setChatFilter={setChatFilter}
+          onOpenSocial={async () => {
+            if (Capacitor.getPlatform() !== "android") {
+              showNotice("Open Chatterbox Social on your Android phone.");
+              return;
+            }
+            try {
+              await SocialBridge.openSocial();
+            } catch (error) {
+              showNotice(error.message || "Install Chatterbox Social to open it.");
+            }
           }}
           onlineIds={onlineIds}
           showActiveStatus={showActiveStatus}
@@ -3133,10 +3193,6 @@ const typingMessage =
           }}
           messageRequestCount={messageRequests.length}
           socket={socket}
-          onSocialMessage={(person) => {
-            const chat = chats.find((item) => !item.isGroup && sameId(item.id, person.id));
-            selectChat(chat || person);
-          }}
           messageRequestsPage={
             <MessageRequestsModal
               inline
@@ -3326,7 +3382,7 @@ onAction={async (action, payload) => {
     setShowChatDetails(true);
   } : undefined}
   pendingPhotos={pendingPhotos}
-  receiptSocket={socketStatus === "connected" && chatFilter !== "social" ? socket : null}
+  receiptSocket={socketStatus === "connected" ? socket : null}
   activeChat={conversationChat}
   messageJump={sameId(messageJump?.chatId, activeChat.id) ? messageJump : null}
   loadingMessages={loadingMessages}
@@ -3497,20 +3553,6 @@ onAction={async (action, payload) => {
         user={user}
         onProfilePictureChange={(profilePicture) =>
           applyUserPicture({ userId: user.id ?? user._id ?? user.userId, profilePicture })
-        }
-        onMessageRequests={loadMessageRequests}
-        messageRequestsPage={
-          <MessageRequestsModal
-            embedded
-            requests={messageRequests}
-            loading={loadingRequests}
-            onRequestUpdated={loadMessageRequests}
-            onAccepted={(userId) => {
-              setShowSettings(false);
-              handleAcceptedRequest(userId);
-            }}
-            showNotice={showNotice}
-          />
         }
         onLogout={handleLogout}
         onClose={() => setShowSettings(false)}

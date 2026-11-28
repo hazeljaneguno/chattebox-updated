@@ -16,8 +16,6 @@ import {
 
 import "./ChatSidebar.css";
 import { typingChatKey } from "../hooks/useTypingIndicator.js";
-import SocialDiscover from "./SocialDiscover.jsx";
-import SocialPage from "./SocialPage.jsx";
 import Avatar from "./Avatar.jsx";
 import { isInboxChat, formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
 import { getReplyPreview } from "../utils/messageHelpers.js";
@@ -41,8 +39,7 @@ export default function ChatSidebar({
   onCallBack,
   messageRequestCount,
   messageRequestsPage,
-  socket,
-  onSocialMessage,
+  onOpenSocial,
   handleLogout,
   selectChat,
   openNewMessage,
@@ -55,12 +52,11 @@ export default function ChatSidebar({
 }) {
   const activeTab = chatFilter === "active";
   const notificationsTab = chatFilter === "notifications";
-  const socialTab = chatFilter === "social";
   const requestsTab = chatFilter === "requests";
   const menuTab = chatFilter === "menu" || requestsTab;
   const openRequests = () => setChatFilter("requests");
-  const messagesTab = !activeTab && !notificationsTab && !menuTab && !socialTab;
-  const title = socialTab ? "Chatterbox Social" : requestsTab ? "Message requests" : notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
+  const messagesTab = !activeTab && !notificationsTab && !menuTab;
+  const title = requestsTab ? "Message requests" : notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
   const notificationCount = messageRequestCount + missedCalls.filter((call) => !call.read).length;
   const profileName = user.displayName || user.name || user.username || "Your account";
   const onlineChats = chats.filter(
@@ -85,16 +81,10 @@ export default function ChatSidebar({
       <header className="brand-row">
         <h1 className="brand-name">{messagesTab ? <>Chatter<span>box</span></> : title}</h1>
         <div className="sidebar-header-actions">
-          {socialTab ? (
-            <button type="button" className="sidebar-messages-shortcut" onClick={() => setChatFilter("all")}>
-              <MessageCircle size={18} aria-hidden="true" /> Messages
-            </button>
-          ) : (
-            <button type="button" className="icon-button" aria-label="Open Social Home"
-              title="Social Home" onClick={() => setChatFilter("social")}>
-              <House size={21} aria-hidden="true" />
-            </button>
-          )}
+          <button type="button" className="icon-button" aria-label="Open Chatterbox Social"
+            title="Chatterbox Social" onClick={onOpenSocial}>
+            <House size={21} aria-hidden="true" />
+          </button>
           {(messagesTab || activeTab) && (
             <button type="button" className="icon-button" aria-label="New message" onClick={openNewMessage}>
               <SquarePen size={22} />
@@ -115,9 +105,7 @@ export default function ChatSidebar({
         </label>
       )}
 
-      {socialTab ? (
-        <SocialPage socket={socket} onMessage={onSocialMessage} />
-      ) : requestsTab ? (
+      {requestsTab ? (
         messageRequestsPage
       ) : notificationsTab ? (
         <SidebarNotifications
@@ -125,9 +113,6 @@ export default function ChatSidebar({
           chats={chats}
           messageRequestCount={messageRequestCount}
           onOpenRequests={openRequests}
-          socket={socket}
-          onSocialMessage={onSocialMessage}
-          onOpenSocial={() => setChatFilter("social")}
           onCallBack={onCallBack}
         />
       ) : menuTab ? (
@@ -146,8 +131,8 @@ export default function ChatSidebar({
             </button>
           </div>
           <div className="sidebar-page-group">
-            <button type="button" className="sidebar-page-row" onClick={() => setChatFilter("social")}>
-              <UsersRound size={22} aria-hidden="true" /> Friends and suggestions
+            <button type="button" className="sidebar-page-row" onClick={onOpenSocial}>
+              <UsersRound size={22} aria-hidden="true" /> Chatterbox Social
             </button>
             <button type="button" className="sidebar-page-row" onClick={() => setChatFilter("groups")}>
               <Users size={22} aria-hidden="true" /> Group chats
@@ -347,7 +332,7 @@ export default function ChatSidebar({
   );
 }
 
-function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onOpenSocial, onCallBack, onSocialMessage, socket }) {
+function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onCallBack }) {
   const today = new Date().toDateString();
   const todayCalls = [];
   const earlierCalls = [];
@@ -401,8 +386,6 @@ function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenR
           <p>Missed calls and message requests will appear here.</p>
         </div>
       )}
-      <SocialDiscover notifications socket={socket} onMessage={onSocialMessage} />
-      <SocialPage compact socket={socket} onOpenSocial={onOpenSocial} />
     </section>
   );
 }

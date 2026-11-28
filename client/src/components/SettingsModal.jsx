@@ -1,7 +1,7 @@
 import { api } from "../api.js";
 import preparePhoto from "../utils/preparePhoto.js";
 import { useLayoutEffect, useRef, useState } from "react";
-import { ArrowLeft, AtSign, Camera, Check, ChevronRight, CircleDot, Inbox, LogOut, Moon, Sun, UserRound } from "lucide-react";
+import { ArrowLeft, AtSign, Camera, Check, ChevronRight, CircleDot, LogOut, Moon, Sun, UserRound } from "lucide-react";
 import { initials } from "./Avatar.jsx";
 import { getAttachmentUrl } from "../utils/messageHelpers.js";
 import "./SettingsModal.css";
@@ -24,19 +24,19 @@ function SettingsRow({ icon: Icon, label, detail, onClick, end, ...attributes })
 export default function SettingsModal({
   isOpen, onClose, user, theme, onThemeChange, savingTheme = false,
   showActiveStatus = true, onActiveStatusChange, savingActiveStatus = false,
-  onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
+  onLogout, onProfilePictureChange,
 }) {
   if (!isOpen) return null;
   return <OpenSettings {...{
     onClose, user, theme, onThemeChange, savingTheme, showActiveStatus,
-    onActiveStatusChange, savingActiveStatus, onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
+    onActiveStatusChange, savingActiveStatus, onLogout, onProfilePictureChange,
   }} />;
 }
 
 function OpenSettings({
   onClose, user, theme, onThemeChange, savingTheme,
   showActiveStatus, onActiveStatusChange, savingActiveStatus,
-  onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
+  onLogout, onProfilePictureChange,
 }) {
   const [page, setPage] = useState("Settings");
   const picker = useRef(null);
@@ -135,22 +135,11 @@ function OpenSettings({
               onClick={() => onActiveStatusChange?.(!showActiveStatus)}
               end={<span className="settings-toggle" aria-hidden="true" />} />
           </section>
-          {messageRequestsPage && (
-            <section className="settings-group" aria-label="Privacy">
-              <h3>Privacy</h3>
-              <SettingsRow icon={Inbox} label="Message requests" detail="Review messages from new contacts"
-                onClick={() => {
-                  setPage("Message requests");
-                  onMessageRequests?.();
-                }} end={<ChevronRight size={18} aria-hidden="true" />} />
-            </section>
-          )}
           <section className="settings-group" aria-label="Account actions">
             <h3>Account actions</h3>
             <SettingsRow icon={LogOut} label="Log out" onClick={onLogout} />
           </section>
         </>}
-        {page === "Message requests" && messageRequestsPage}
         {page === "Profile" && (
           <section className="settings-group" aria-label="Profile details">
             <SettingsRow icon={UserRound} label="Name" detail={name} />

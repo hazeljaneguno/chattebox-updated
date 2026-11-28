@@ -35,6 +35,7 @@ public class MainActivity extends BridgeActivity {
         // registered automatically elsewhere.
         registerPlugin(IncomingCallBridge.class);
         registerPlugin(RecentPhotosPlugin.class);
+        registerPlugin(SocialBridge.class);
 
         super.onCreate(savedInstanceState);
 
