@@ -156,6 +156,7 @@ export default function App() {
   const [showNewChat, setShowNewChat] = useState(false);
 
   const [newSearch, setNewSearch] = useState("");
+  const [recipientSearch, setRecipientSearch] = useState(null);
   const [searchResults, setSearchResults] = useState([]);
 
   const [messageRequests, setMessageRequests] = useState([]);
@@ -183,7 +184,7 @@ const [messageJump, setMessageJump] = useState(null);
 
   const [socket, setSocket] = useState(null);
 
-  const [chatFilter, setChatFilter] = useState("all");
+  const [chatFilter, setChatFilter] = useState("social");
   const [missedCalls, setMissedCalls] = useState([]);
 
   // =========================
@@ -2441,17 +2442,24 @@ useEffect(() => {
   useEffect(() => {
     if (!showNewChat && !showCreateGroup) return;
 
+    let active = true;
     const timer = window.setTimeout(async () => {
       try {
         const { users } = await api.users(newSearch);
-
+        if (!active) return;
         setSearchResults(users);
+        if (showNewChat) setRecipientSearch({ query: newSearch, users });
       } catch (err) {
-        setError(err.message);
+        if (!active) return;
+        if (showNewChat) setRecipientSearch({
+          query: newSearch, users: [], error: err.message || "Could not find people.",
+        });
+        else setError(err.message);
       }
     }, 250);
 
     return () => {
+      active = false;
       window.clearTimeout(timer);
     };
   }, [showNewChat, showCreateGroup, newSearch]);
@@ -2459,6 +2467,12 @@ useEffect(() => {
   // =========================
   // 36. SELECT CHAT
   // =========================
+
+  function openNewMessage() {
+    setNewSearch("");
+    setRecipientSearch(null);
+    setShowNewChat(true);
+  }
 
   function selectChat(person) {
     if (!person.isGroup && person.conversationStatus !== "accepted" && messageRequests.some(
@@ -2475,6 +2489,7 @@ useEffect(() => {
       unread: 0,
     });
 
+    setChatFilter((current) => current === "social" ? "all" : current);
     setActiveId(person.id);
     activeIdRef.current = person.id;
 
@@ -2861,7 +2876,7 @@ async function handleLogout() {
   // 7. Reset interface state.
   setMobileChatOpen(false);
   setMissedCalls([]);
-  setChatFilter("all");
+  setChatFilter("social");
   setShowCreateGroup(false);
   setSelectedMemberIds([]);
   setGroupName("");
@@ -3086,10 +3101,10 @@ const typingMessage =
   // =========================
 
   return (
-    <main className={`app-shell${showSettings ? " settings-open" : ""}`}>
+    <main className={`app-shell${showSettings ? " settings-open" : ""}${chatFilter === "social" ? " social-home-open" : ""}`}>
 
       {/* CHAT SIDEBAR */}
-      <div className={`chat-sidebar-panel${mobileChatOpen ? " sidebar-hidden-mobile" : ""}`}>
+      <div className={`chat-sidebar-panel${mobileChatOpen && chatFilter !== "social" ? " sidebar-hidden-mobile" : ""}`}>
         <ChatSidebar
           typingByChat={typingByChat}
           user={user}
@@ -3099,7 +3114,10 @@ const typingMessage =
           setSearch={setSearch}
           filteredChats={filteredChats}
           chatFilter={chatFilter}
-          setChatFilter={setChatFilter}
+          setChatFilter={(tab) => {
+            if (tab === "social" || chatFilter === "social") setMobileChatOpen(false);
+            setChatFilter(tab);
+          }}
           onlineIds={onlineIds}
           showActiveStatus={showActiveStatus}
           onEnableActiveStatus={() => handleActiveStatusChange(true)}
@@ -3132,7 +3150,7 @@ const typingMessage =
           }
           handleLogout={handleLogout}
           selectChat={selectChat}
-          setShowNewChat={setShowNewChat}
+          openNewMessage={openNewMessage}
           setShowCreateGroup={setShowCreateGroup}
           setError={setError}
           setSelectedMemberIds={setSelectedMemberIds}
@@ -3308,7 +3326,7 @@ onAction={async (action, payload) => {
     setShowChatDetails(true);
   } : undefined}
   pendingPhotos={pendingPhotos}
-  receiptSocket={socketStatus === "connected" ? socket : null}
+  receiptSocket={socketStatus === "connected" && chatFilter !== "social" ? socket : null}
   activeChat={conversationChat}
   messageJump={sameId(messageJump?.chatId, activeChat.id) ? messageJump : null}
   loadingMessages={loadingMessages}
@@ -3438,7 +3456,7 @@ onAction={async (action, payload) => {
 
             <button
               className="create-chat-submit"
-              onClick={() => setShowNewChat(true)}
+              onClick={openNewMessage}
             >
               <Plus size={18} />
               Find people
@@ -3452,9 +3470,25 @@ onAction={async (action, payload) => {
         open={showNewChat}
         setOpen={setShowNewChat}
         newSearch={newSearch}
-        setNewSearch={setNewSearch}
-        searchResults={searchResults}
+        setNewSearch={(query) => {
+          setRecipientSearch(null);
+          setNewSearch(query);
+        }}
+        searchResults={recipientSearch?.query === newSearch ? recipientSearch.users : []}
+        searchPending={recipientSearch?.query !== newSearch}
+        searchError={recipientSearch?.query === newSearch ? recipientSearch.error : ""}
+        groups={chats.filter((chat) => chat.isGroup)}
+        onlineIds={onlineIds}
         selectChat={selectChat}
+        onCreateGroup={() => {
+          setShowNewChat(false);
+          setError("");
+          setSelectedMemberIds([]);
+          setGroupName("");
+          setNewSearch("");
+          setSearchResults([]);
+          setShowCreateGroup(true);
+        }}
       />
 
       {/* SETTINGS PANEL */}
@@ -3464,10 +3498,20 @@ onAction={async (action, payload) => {
         onProfilePictureChange={(profilePicture) =>
           applyUserPicture({ userId: user.id ?? user._id ?? user.userId, profilePicture })
         }
-        onMessageRequests={() => {
-          setShowSettings(false);
-          setShowMessageRequests(true);
-        }}
+        onMessageRequests={loadMessageRequests}
+        messageRequestsPage={
+          <MessageRequestsModal
+            embedded
+            requests={messageRequests}
+            loading={loadingRequests}
+            onRequestUpdated={loadMessageRequests}
+            onAccepted={(userId) => {
+              setShowSettings(false);
+              handleAcceptedRequest(userId);
+            }}
+            showNotice={showNotice}
+          />
+        }
         onLogout={handleLogout}
         onClose={() => setShowSettings(false)}
         theme={theme}

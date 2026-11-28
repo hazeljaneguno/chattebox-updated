@@ -24,19 +24,19 @@ function SettingsRow({ icon: Icon, label, detail, onClick, end, ...attributes })
 export default function SettingsModal({
   isOpen, onClose, user, theme, onThemeChange, savingTheme = false,
   showActiveStatus = true, onActiveStatusChange, savingActiveStatus = false,
-  onMessageRequests, onLogout, onProfilePictureChange,
+  onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
 }) {
   if (!isOpen) return null;
   return <OpenSettings {...{
     onClose, user, theme, onThemeChange, savingTheme, showActiveStatus,
-    onActiveStatusChange, savingActiveStatus, onMessageRequests, onLogout, onProfilePictureChange,
+    onActiveStatusChange, savingActiveStatus, onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
   }} />;
 }
 
 function OpenSettings({
   onClose, user, theme, onThemeChange, savingTheme,
   showActiveStatus, onActiveStatusChange, savingActiveStatus,
-  onMessageRequests, onLogout, onProfilePictureChange,
+  onMessageRequests, messageRequestsPage, onLogout, onProfilePictureChange,
 }) {
   const [page, setPage] = useState("Settings");
   const picker = useRef(null);
@@ -124,19 +124,33 @@ function OpenSettings({
             <SettingsRow icon={theme === "dark" ? Moon : Sun} label="Appearance"
               detail={theme === "dark" ? "Dark" : "Light"}
               onClick={() => setPage("Appearance")} end={<ChevronRight size={18} aria-hidden="true" />} />
+          </section>
+          <section className="settings-group" aria-label="Profile and visibility">
+            <h3>Profile and visibility</h3>
+            {username && <SettingsRow icon={AtSign} label="Username" detail={`@${username}`}
+              onClick={() => setPage("Profile")} end={<ChevronRight size={18} aria-hidden="true" />} />}
             <SettingsRow icon={CircleDot} label="Active status"
               detail={savingActiveStatus ? "Saving…" : showActiveStatus ? "On" : "Off"}
               role="switch" aria-checked={showActiveStatus} disabled={savingActiveStatus}
               onClick={() => onActiveStatusChange?.(!showActiveStatus)}
               end={<span className="settings-toggle" aria-hidden="true" />} />
           </section>
-          <section className="settings-group" aria-label="Privacy and account actions">
-            <h3>Privacy and account actions</h3>
-            {onMessageRequests && <SettingsRow icon={Inbox} label="Message requests"
-              onClick={onMessageRequests} end={<ChevronRight size={18} aria-hidden="true" />} />}
+          {messageRequestsPage && (
+            <section className="settings-group" aria-label="Privacy">
+              <h3>Privacy</h3>
+              <SettingsRow icon={Inbox} label="Message requests" detail="Review messages from new contacts"
+                onClick={() => {
+                  setPage("Message requests");
+                  onMessageRequests?.();
+                }} end={<ChevronRight size={18} aria-hidden="true" />} />
+            </section>
+          )}
+          <section className="settings-group" aria-label="Account actions">
+            <h3>Account actions</h3>
             <SettingsRow icon={LogOut} label="Log out" onClick={onLogout} />
           </section>
         </>}
+        {page === "Message requests" && messageRequestsPage}
         {page === "Profile" && (
           <section className="settings-group" aria-label="Profile details">
             <SettingsRow icon={UserRound} label="Name" detail={name} />

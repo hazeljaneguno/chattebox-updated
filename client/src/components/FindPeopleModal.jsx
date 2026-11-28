@@ -1,5 +1,6 @@
-import { Search, Users, X } from "lucide-react";
+import { ArrowLeft, UsersRound } from "lucide-react";
 import Avatar from "./Avatar.jsx";
+import ChatScreen from "./ChatScreen.jsx";
 
 export default function FindPeopleModal({
   open,
@@ -7,76 +8,61 @@ export default function FindPeopleModal({
   newSearch,
   setNewSearch,
   searchResults,
+  searchPending,
+  searchError,
+  groups,
+  onlineIds,
   selectChat,
+  onCreateGroup,
 }) {
   if (!open) return null;
+  const close = () => setOpen(false);
+  const term = newSearch.trim().toLowerCase();
+  const matchingGroups = groups.filter((group) => !term || group.name?.toLowerCase().includes(term));
 
   return (
-    <div
-      className="modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) setOpen(false);
-      }}
-    >
-      <div className="new-chat-modal">
-        <div className="modal-top">
-          <div>
-            <span className="eyebrow">LET'S CONNECT</span>
-            <h2>Find people</h2>
-          </div>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setOpen(false)}
-            aria-label="Close"
-          >
-            <X size={20} />
+    <ChatScreen label="New message" onBack={close}>
+      <header className="chat-screen-header">
+        <button type="button" className="chat-screen-icon" aria-label="Back" onClick={close}>
+          <ArrowLeft size={23} />
+        </button>
+        <h2>New message</h2>
+      </header>
+      <label className="chat-recipient-field">
+        <span>To</span>
+        <input
+          type="search"
+          value={newSearch}
+          onChange={(event) => setNewSearch(event.target.value)}
+          placeholder="Type a name or group"
+          aria-label="Search recipients"
+        />
+      </label>
+      <div className="chat-screen-scroll chat-recipient-list">
+        {!term && (
+          <button type="button" className="chat-recipient" onClick={onCreateGroup}>
+            <span className="chat-recipient-group-icon"><UsersRound size={23} /></span>
+            <span>Group chat</span>
           </button>
-        </div>
-
-        <p>Search registered users by username or email.</p>
-
-        <label className="search-box modal-search">
-          <Search size={18} />
-          <input
-            autoFocus
-            value={newSearch}
-            onChange={(event) => setNewSearch(event.target.value)}
-            placeholder="Search username or email"
-            aria-label="Search registered users"
-          />
-        </label>
-
-        <div className="people-results">
-          {searchResults.map((person) => (
-            <button
-              className="people-result"
-              key={person.id}
-              onClick={() => selectChat(person)}
-            >
-              <Avatar name={person.username} />
-
-              <span>
-                <strong>{person.username}</strong>
-                <small>{person.email}</small>
-              </span>
-
-              <span className="result-open">
-                Message <span>→</span>
-              </span>
-            </button>
-          ))}
-
-          {searchResults.length === 0 && (
-            <div className="no-results">
-              <Users size={22} />
-              <span>No other users found.</span>
-              <small>Ask a friend to create an account first.</small>
-            </div>
-          )}
-        </div>
+        )}
+        {matchingGroups.map((group) => (
+          <button type="button" className="chat-recipient" key={`group:${group.id}`} onClick={() => selectChat(group)}>
+            <Avatar name={group.name} photo={group.profilePicture} />
+            <span>{group.name}<small>Group chat</small></span>
+          </button>
+        ))}
+        {searchResults.map((person) => (
+          <button type="button" className="chat-recipient" key={`person:${person.id}`} onClick={() => selectChat(person)}>
+            <Avatar name={person.username} photo={person.profilePicture} online={onlineIds.has(String(person.id))} />
+            <span>{person.username}</span>
+          </button>
+        ))}
+        {searchPending && <p role="status">Finding people…</p>}
+        {searchError && <p role="alert">{searchError}</p>}
+        {!searchPending && !searchError && !matchingGroups.length && !searchResults.length && (
+          <p role="status">No people or groups found.</p>
+        )}
       </div>
-    </div>
+    </ChatScreen>
   );
 }

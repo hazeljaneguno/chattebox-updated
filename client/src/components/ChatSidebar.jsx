@@ -1,5 +1,6 @@
 import {
   Bell,
+  House,
   ChevronRight,
   MessagesSquare,
   PhoneMissed,
@@ -15,6 +16,7 @@ import {
 
 import "./ChatSidebar.css";
 import { typingChatKey } from "../hooks/useTypingIndicator.js";
+import SocialDiscover from "./SocialDiscover.jsx";
 import SocialPage from "./SocialPage.jsx";
 import Avatar from "./Avatar.jsx";
 import { isInboxChat, formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
@@ -43,7 +45,7 @@ export default function ChatSidebar({
   onSocialMessage,
   handleLogout,
   selectChat,
-  setShowNewChat,
+  openNewMessage,
   setShowCreateGroup,
   setError,
   setSelectedMemberIds,
@@ -55,9 +57,9 @@ export default function ChatSidebar({
   const notificationsTab = chatFilter === "notifications";
   const socialTab = chatFilter === "social";
   const requestsTab = chatFilter === "requests";
-  const menuTab = chatFilter === "menu" || socialTab || requestsTab;
+  const menuTab = chatFilter === "menu" || requestsTab;
   const openRequests = () => setChatFilter("requests");
-  const messagesTab = !activeTab && !notificationsTab && !menuTab;
+  const messagesTab = !activeTab && !notificationsTab && !menuTab && !socialTab;
   const title = socialTab ? "Chatterbox Social" : requestsTab ? "Message requests" : notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
   const notificationCount = messageRequestCount + missedCalls.filter((call) => !call.read).length;
   const profileName = user.displayName || user.name || user.username || "Your account";
@@ -82,14 +84,23 @@ export default function ChatSidebar({
     <aside className="sidebar chatterbox-sidebar" aria-label={title}>
       <header className="brand-row">
         <h1 className="brand-name">{messagesTab ? <>Chatter<span>box</span></> : title}</h1>
-        {(messagesTab || activeTab) && <button
-          type="button"
-          className="icon-button"
-          aria-label="New chat"
-          onClick={() => setShowNewChat(true)}
-        >
-          <SquarePen size={22} />
-        </button>}
+        <div className="sidebar-header-actions">
+          {socialTab ? (
+            <button type="button" className="sidebar-messages-shortcut" onClick={() => setChatFilter("all")}>
+              <MessageCircle size={18} aria-hidden="true" /> Messages
+            </button>
+          ) : (
+            <button type="button" className="icon-button" aria-label="Open Social Home"
+              title="Social Home" onClick={() => setChatFilter("social")}>
+              <House size={21} aria-hidden="true" />
+            </button>
+          )}
+          {(messagesTab || activeTab) && (
+            <button type="button" className="icon-button" aria-label="New message" onClick={openNewMessage}>
+              <SquarePen size={22} />
+            </button>
+          )}
+        </div>
       </header>
 
       {messagesTab && (
@@ -105,7 +116,7 @@ export default function ChatSidebar({
       )}
 
       {socialTab ? (
-        <SocialPage socket={socket} onBack={() => setChatFilter("menu")} onMessage={onSocialMessage} />
+        <SocialPage socket={socket} onMessage={onSocialMessage} />
       ) : requestsTab ? (
         messageRequestsPage
       ) : notificationsTab ? (
@@ -115,6 +126,7 @@ export default function ChatSidebar({
           messageRequestCount={messageRequestCount}
           onOpenRequests={openRequests}
           socket={socket}
+          onSocialMessage={onSocialMessage}
           onOpenSocial={() => setChatFilter("social")}
           onCallBack={onCallBack}
         />
@@ -335,7 +347,7 @@ export default function ChatSidebar({
   );
 }
 
-function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onOpenSocial, onCallBack, socket }) {
+function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onOpenSocial, onCallBack, onSocialMessage, socket }) {
   const today = new Date().toDateString();
   const todayCalls = [];
   const earlierCalls = [];
@@ -389,6 +401,7 @@ function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenR
           <p>Missed calls and message requests will appear here.</p>
         </div>
       )}
+      <SocialDiscover notifications socket={socket} onMessage={onSocialMessage} />
       <SocialPage compact socket={socket} onOpenSocial={onOpenSocial} />
     </section>
   );

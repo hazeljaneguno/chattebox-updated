@@ -284,6 +284,11 @@ export const api = {
      USERS
   ======================================= */
 
+  discoverSocial: (query = "") => request(`/api/social/discover?q=${encodeURIComponent(query)}`),
+
+  updateSocialDiscovery: (path, method, payload) =>
+    request(`/api/social/discover/${path}`, { method, body: JSON.stringify(payload) }),
+
   social: () => request("/api/social"),
 
   updateFriendship: (id, action) =>

@@ -694,3 +694,39 @@
   margin: 0;
   font-size: 14px;
 }
+
+.app-shell.social-home-open > .chat-sidebar-panel {
+  grid-column: 1 / -1;
+}
+
+.app-shell.social-home-open > .chat-panel {
+  display: none;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+
+.sidebar-messages-shortcut {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--inbox-rule);
+  border-radius: 12px;
+  background: var(--inbox-surface);
+  color: var(--inbox-accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.chatterbox-sidebar .conversation-list.social-page {
+  box-sizing: border-box;
+  width: min(100%, 680px);
+  margin-inline: auto;
+}

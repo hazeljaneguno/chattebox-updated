@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, MessageCircle, UserPlus } from "lucide-react";
+import { MessageCircle, UserPlus } from "lucide-react";
 import { api } from "../api.js";
+import SocialDiscover from "./SocialDiscover.jsx";
 import Avatar from "./Avatar.jsx";
 import "./SocialPage.css";
 
-export default function SocialPage({ socket, onBack, onMessage, onOpenSocial, compact = false }) {
+export default function SocialPage({ socket, onMessage, onOpenSocial, compact = false }) {
+  const [showFriends, setShowFriends] = useState(false);
   const [people, setPeople] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -64,12 +66,16 @@ export default function SocialPage({ socket, onBack, onMessage, onOpenSocial, co
 
   return (
     <section className={compact ? "social-page social-suggestions" : "conversation-list sidebar-page social-page"} aria-label="Chatterbox social">
-      {!compact && <button type="button" className="social-back" onClick={onBack}>
-        <ArrowLeft size={18} aria-hidden="true" /> Back to Menu
-      </button>}
-      {error && <p role="alert">{error} <button type="button" onClick={load}>Retry</button></p>}
-      {!people && !error && <p role="status">Loading people…</p>}
-      {people && (
+      {!compact && (
+        <nav className="social-home-tabs" aria-label="Social home">
+          <button type="button" aria-pressed={!showFriends} onClick={() => setShowFriends(false)}>Feed</button>
+          <button type="button" aria-pressed={showFriends} onClick={() => setShowFriends(true)}>Friends</button>
+        </nav>
+      )}
+      {!compact && !showFriends && <SocialDiscover socket={socket} onMessage={onMessage} />}
+      {(compact || showFriends) && error && <p role="alert">{error} <button type="button" onClick={load}>Retry</button></p>}
+      {(compact || showFriends) && !people && !error && <p role="status">Loading people…</p>}
+      {(compact || showFriends) && people && (
         <>
           {!compact && <section>
             <h2>Friend requests</h2>

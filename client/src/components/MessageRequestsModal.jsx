@@ -1,19 +1,21 @@
 import { useState } from "react";
-import {
-  X,
-  Mail,
-  Check,
-  Trash2,
-  Ban,
-  LoaderCircle,
-  MessageCircle,
-} from "lucide-react";
-
+import { ArrowLeft, Info } from "lucide-react";
 import Avatar from "./Avatar.jsx";
+import ChatScreen from "./ChatScreen.jsx";
 import { api } from "../api.js";
-import { getAttachmentUrl } from "../utils/messageHelpers.js";
+import { formatChatDate } from "../utils/chatHelpers.js";
+import { getAttachmentMediaType, getAttachmentUrl } from "../utils/messageHelpers.js";
 
-import "./MessageRequestsModal.css";
+function senderId(request) {
+  return request.user?.id ?? request.user?._id;
+}
+
+const actions = {
+  block: { run: (id) => api.blockConversation(id), notice: "User blocked." },
+  reject: { run: (id) => api.rejectMessageRequest(id), notice: "Message request declined." },
+  delete: { run: (id) => api.deleteMessageRequest(id), notice: "Message request deleted." },
+  accept: { run: (id) => api.acceptMessageRequest(id), notice: "Message request accepted." },
+};
 
 export default function MessageRequestsModal({
   requests = [],
@@ -23,274 +25,137 @@ export default function MessageRequestsModal({
   onAccepted,
   showNotice,
   inline = false,
+  embedded = false,
 }) {
-  const [processingId, setProcessingId] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [showInfo, setShowInfo] = useState(false);
+  const selected = requests.find((request) => senderId(request) === selectedId);
 
-  // Handle accepting, rejecting, deleting, or blocking a request
-  async function handleAction(userId, action) {
-    if (!userId || processingId) return;
+  function openRequest(id) {
+    setError("");
+    setShowInfo(false);
+    setSelectedId(id);
+  }
 
-    setProcessingId(userId);
-
+  async function handleAction(action) {
+    if (!selectedId || busy) return;
+    const { run, notice } = actions[action];
+    setBusy(true);
+    setError("");
     try {
-      switch (action) {
-        case "accept":
-          await api.acceptMessageRequest(userId);
-          showNotice?.("Message request accepted.");
-          onAccepted?.(userId);
-          break;
-
-        case "reject":
-          await api.rejectMessageRequest(userId);
-          showNotice?.("Message request rejected.");
-          break;
-
-        case "delete":
-          await api.deleteMessageRequest(userId);
-          showNotice?.("Message request deleted.");
-          break;
-
-        case "block":
-          await api.blockConversation(userId);
-          showNotice?.("User blocked.");
-          break;
-
-        default:
-          return;
-      }
-
+      await run(selectedId);
+      if (action === "accept") onAccepted?.(selectedId);
+      setSelectedId(null);
+      showNotice?.(notice);
       onRequestUpdated?.();
     } catch (error) {
-      console.error(
-        `Could not ${action} message request:`,
-        error
-      );
-
-      showNotice?.(
-        error.message || `Could not ${action} this request.`
-      );
+      setError(error.message || "Could not update this request.");
     } finally {
-      setProcessingId(null);
+      setBusy(false);
     }
   }
 
-  // Get the message preview
-  function getMessagePreview(request) {
-    if (request.message?.text) {
-      return request.message.text;
-    }
+  const list = (
+    <div className={inline ? "conversation-list sidebar-page chat-request-list" : "chat-screen-scroll chat-request-list"}>
+      {inline && <button type="button" className="chat-screen-back-link" onClick={onClose}>
+        <ArrowLeft size={17} /> Back to Menu
+      </button>}
+      {loading && !requests.length && <p role="status">Loading requests…</p>}
+      {!loading && !requests.length && <p>No message requests.</p>}
+      {requests.map((request) => {
+        const id = senderId(request);
+        const name = request.user?.username || "Unknown user";
+        const preview = request.message?.text || (request.message?.attachment ? "Sent an attachment" : "Message request");
+        return (
+          <button type="button" className="chat-recipient chat-request-row" key={id} onClick={() => openRequest(id)}>
+            <Avatar name={name} photo={request.user?.profilePicture} />
+            <span><strong>{name}</strong><small>{preview}</small></span>
+            <time dateTime={request.createdAt}>{formatChatDate(request.createdAt)}</time>
+          </button>
+        );
+      })}
+    </div>
+  );
 
-    if (request.message?.attachment) {
-      return "Sent you an attachment";
-    }
+  if (selected) {
+    const name = selected.user?.username || "Unknown user";
+    const photo = selected.user?.profilePicture;
+    const message = selected.message;
+    const createdAt = message?.createdAt || selected.createdAt;
+    const attachment = message?.attachment;
+    const url = getAttachmentUrl(attachment);
+    const back = () => {
+      if (!busy) setSelectedId(null);
+    };
 
-    return "Sent you a message request";
-  }
-
-  // Get the sender's user ID
-  function getUserId(request) {
-    return request.user?._id || request.user?.id;
-  }
-
-  const panel = (
-      <section
-        className={inline ? "conversation-list sidebar-page message-requests-inline" : "message-requests-modal"}
-        role={inline ? undefined : "dialog"}
-        aria-modal={inline ? undefined : true}
-        aria-label="Message requests"
-      >
-        {inline ? (
-          <button type="button" className="request-action" onClick={onClose}>Back to Menu</button>
-        ) : (
-
-        <header className="message-requests-header">
-          <div className="message-requests-heading">
-            <span className="message-requests-heading-icon">
-              <Mail size={20} />
-            </span>
-
-            <div>
-              <h2 id="message-requests-title">
-                Message Requests
-              </h2>
-
-              <p>
-                Review messages from people you haven't accepted.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            className="message-requests-close"
-            onClick={onClose}
-            aria-label="Close message requests"
-          >
-            <X size={20} />
+    return (
+      <ChatScreen embedded={embedded} key={selectedId} label={`Message request from ${name}`} onBack={back}>
+        <header className="chat-screen-header">
+          <button type="button" className="chat-screen-icon" aria-label="Back to message requests" disabled={busy} onClick={back}>
+            <ArrowLeft size={23} />
+          </button>
+          <Avatar name={name} photo={photo} />
+          <h2>{name}</h2>
+          <button type="button" className="chat-screen-icon" aria-label="About this request" aria-expanded={showInfo}
+            onClick={() => setShowInfo((visible) => !visible)}>
+            <Info size={22} />
           </button>
         </header>
+        {showInfo && (
+          <div className="chat-request-info">
+            <p>This is a private message request. You can preview it before deciding whether to chat.</p>
+            <button type="button" className="chat-screen-back-link" disabled={busy} onClick={() => handleAction("reject")}>
+              Decline request
+            </button>
+          </div>
         )}
-
-        {/* CONTENT */}
-        <div className="message-requests-content">
-          {loading ? (
-            <div className="message-requests-state">
-              <LoaderCircle
-                className="requests-spinner"
-                size={28}
-              />
-
-              <p>Loading message requests...</p>
+        <div className="chat-screen-scroll chat-request-thread">
+          <div className="chat-request-profile">
+            <Avatar name={name} photo={photo} />
+            <h3>{name}</h3>
+            <span>Message request</span>
+          </div>
+          <div className="chat-request-message">
+            {createdAt && <time dateTime={createdAt}>{formatChatDate(createdAt)}</time>}
+            <div className="chat-request-bubble-row">
+              <Avatar small name={name} photo={photo} />
+              <div className="chat-request-bubble">
+                {message?.text && <p>{message.text}</p>}
+                {url && (
+                  <a href={url} target="_blank" rel="noreferrer">
+                    {getAttachmentMediaType(attachment) === "image"
+                      ? <img src={url} alt="Attached image" />
+                      : "Open attachment"}
+                  </a>
+                )}
+              </div>
             </div>
-          ) : requests.length === 0 ? (
-            <div className="message-requests-state">
-              <span className="requests-empty-icon">
-                <MessageCircle size={30} />
-              </span>
-
-              <h3>No message requests</h3>
-
-              <p>
-                When someone new sends you a message, it will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="message-request-list">
-              {requests.map((request) => {
-                const userId = getUserId(request);
-                const isProcessing = processingId === userId;
-
-                return (
-                  <article
-                    className="message-request-card"
-                    key={request.conversationKey || userId}
-                  >
-                    {/* USER AND MESSAGE */}
-                    <div className="message-request-main">
-                      <Avatar
-                        name={request.user?.username}
-                        photo={request.user?.profilePicture}
-                      />
-
-                      <div className="message-request-details">
-                        <h3>
-                          {request.user?.username || "Unknown user"}
-                        </h3>
-
-                        <p className="message-request-preview">
-                          {getMessagePreview(request)}
-                        </p>
-
-                        {request.createdAt && (
-                          <time
-                            dateTime={new Date(
-                              request.createdAt
-                            ).toISOString()}
-                          >
-                            {new Date(
-                              request.createdAt
-                            ).toLocaleDateString()}
-                          </time>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* ATTACHMENT */}
-                    {request.message?.attachment?.url && (
-                      <a
-                        className="message-request-attachment"
-                        href={getAttachmentUrl(request.message.attachment)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        View attachment
-                      </a>
-                    )}
-
-                    {/* ACTION BUTTONS */}
-                    <div className="message-request-actions">
-                      <button
-                        type="button"
-                        className="request-action accept"
-                        disabled={Boolean(processingId) || !userId}
-                        onClick={() =>
-                          handleAction(userId, "accept")
-                        }
-                      >
-                        {isProcessing ? (
-                          <LoaderCircle
-                            size={15}
-                            className="requests-spinner"
-                          />
-                        ) : (
-                          <Check size={15} />
-                        )}
-
-                        Allow chat
-                      </button>
-
-                      <button
-                        type="button"
-                        className="request-action reject"
-                        disabled={Boolean(processingId) || !userId}
-                        onClick={() =>
-                          handleAction(userId, "reject")
-                        }
-                      >
-                        <X size={15} />
-                        Reject
-                      </button>
-
-                      <button
-                        type="button"
-                        className="request-action delete"
-                        disabled={Boolean(processingId) || !userId}
-                        onClick={() =>
-                          handleAction(userId, "delete")
-                        }
-                        title="Delete request"
-                      >
-                        <Trash2 size={15} />
-                        Delete
-                      </button>
-
-                      <button
-                        type="button"
-                        className="request-action block"
-                        disabled={Boolean(processingId) || !userId}
-                        onClick={() =>
-                          handleAction(userId, "block")
-                        }
-                        title="Block user"
-                      >
-                        <Ban size={15} />
-                        Block
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
+          </div>
         </div>
+        <footer className="chat-request-footer">
+          <p>Accept to let {name} send more messages and call you.</p>
+          {error && <p role="alert">{error}</p>}
+          <div className="chat-request-buttons">
+            <button type="button" disabled={busy} onClick={() => handleAction("block")}>Block</button>
+            <button type="button" disabled={busy} onClick={() => handleAction("delete")}>Delete</button>
+            <button type="button" disabled={busy} onClick={() => handleAction("accept")}>Accept</button>
+          </div>
+          {busy && <p role="status">Updating request…</p>}
+        </footer>
+      </ChatScreen>
+    );
+  }
 
-        {/* FOOTER */}
-        {!inline && <footer className="message-requests-footer">
-          <button
-            type="button"
-            onClick={onClose}
-          >
-            Done
-          </button>
-        </footer>}
-      </section>
-  );
-  if (inline) return panel;
+  if (inline || embedded) return list;
   return (
-    <div className="message-requests-overlay" onMouseDown={(event) => {
-      if (event.target === event.currentTarget) onClose?.();
-    }}>
-      {panel}
-    </div>
+    <ChatScreen label="Message requests" onBack={onClose}>
+      <header className="chat-screen-header">
+        <button type="button" className="chat-screen-icon" aria-label="Back" onClick={onClose}><ArrowLeft size={23} /></button>
+        <h2>Message requests</h2>
+      </header>
+      {list}
+    </ChatScreen>
   );
 }

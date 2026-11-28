@@ -195,3 +195,60 @@
   border: 2px solid var(--surface, #fff);
   border-radius: 50%;
 }
+
+.app-shell {
+  --navigation-row-size: 1rem;
+}
+
+.chatterbox-settings .settings-row,
+.chatterbox-sidebar .sidebar-page-row {
+  font-size: var(--navigation-row-size, 1rem);
+}
+
+.settings-scroll {
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.settings-group + .settings-group {
+  padding-top: 14px;
+  border-top: 1px solid var(--border, #ded9eb);
+}
+
+.chatterbox-settings .chat-request-row {
+  font-size: var(--navigation-row-size);
+}
+
+.chatterbox-settings .chat-request-list {
+  --screen-muted: var(--muted, #6d667e);
+  --screen-surface: var(--surface-secondary, #f1edf8);
+}
+
+.chatterbox-settings .chat-screen-embedded {
+  position: static;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  background: var(--surface, #fff);
+  color: var(--text, #211d2f);
+  --screen-surface: var(--surface-secondary, #f1edf8);
+  --screen-border: var(--border, #ded9eb);
+  --screen-muted: var(--muted, #6d667e);
+  --screen-accent: var(--primary, #7868e6);
+}
+
+.chatterbox-settings .chat-screen-embedded .chat-screen-layout {
+  min-height: 380px;
+}
+
+.chatterbox-settings .chat-screen-embedded .chat-screen-scroll {
+  overflow: visible;
+}
+
+.chatterbox-settings .chat-screen-embedded .chat-request-buttons button {
+  color: var(--text, #211d2f);
+}
+
+.chatterbox-settings .chat-screen-embedded .chat-request-buttons button:last-child {
+  color: #101318;
+}

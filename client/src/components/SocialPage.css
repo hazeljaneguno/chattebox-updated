@@ -72,3 +72,14 @@
   background: var(--chat-panel);
   color: var(--text-color);
 }
+
+.social-home-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.social-home-tabs [aria-pressed="true"] {
+  background: var(--inbox-accent);
+  color: var(--inbox-background);
+}
