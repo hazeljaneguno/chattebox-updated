@@ -302,3 +302,23 @@
     grid-template-columns: 1fr 1fr;
   }
 }
+
+.message-requests-inline .message-requests-content {
+  padding: 12px 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.message-requests-inline .message-request-card {
+  background: var(--inbox-surface);
+  color: var(--inbox-text);
+  border-color: var(--inbox-rule);
+}
+
+.message-requests-inline :is(.message-request-details h3, .message-requests-state h3) {
+  color: var(--inbox-text);
+}
+
+.message-requests-inline :is(.message-request-preview, time, .message-requests-state p) {
+  color: var(--inbox-muted);
+}

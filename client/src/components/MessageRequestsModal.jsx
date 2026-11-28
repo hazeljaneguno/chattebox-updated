@@ -11,6 +11,7 @@ import {
 
 import Avatar from "./Avatar.jsx";
 import { api } from "../api.js";
+import { getAttachmentUrl } from "../utils/messageHelpers.js";
 
 import "./MessageRequestsModal.css";
 
@@ -21,6 +22,7 @@ export default function MessageRequestsModal({
   onRequestUpdated,
   onAccepted,
   showNotice,
+  inline = false,
 }) {
   const [processingId, setProcessingId] = useState(null);
 
@@ -90,22 +92,17 @@ export default function MessageRequestsModal({
     return request.user?._id || request.user?.id;
   }
 
-  return (
-    <div
-      className="message-requests-overlay"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose?.();
-        }
-      }}
-    >
+  const panel = (
       <section
-        className="message-requests-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="message-requests-title"
+        className={inline ? "conversation-list sidebar-page message-requests-inline" : "message-requests-modal"}
+        role={inline ? undefined : "dialog"}
+        aria-modal={inline ? undefined : true}
+        aria-label="Message requests"
       >
-        {/* HEADER */}
+        {inline ? (
+          <button type="button" className="request-action" onClick={onClose}>Back to Menu</button>
+        ) : (
+
         <header className="message-requests-header">
           <div className="message-requests-heading">
             <span className="message-requests-heading-icon">
@@ -132,6 +129,7 @@ export default function MessageRequestsModal({
             <X size={20} />
           </button>
         </header>
+        )}
 
         {/* CONTENT */}
         <div className="message-requests-content">
@@ -170,8 +168,8 @@ export default function MessageRequestsModal({
                     {/* USER AND MESSAGE */}
                     <div className="message-request-main">
                       <Avatar
-                        user={request.user}
-                        size="48"
+                        name={request.user?.username}
+                        photo={request.user?.profilePicture}
                       />
 
                       <div className="message-request-details">
@@ -201,7 +199,7 @@ export default function MessageRequestsModal({
                     {request.message?.attachment?.url && (
                       <a
                         className="message-request-attachment"
-                        href={request.message.attachment.url}
+                        href={getAttachmentUrl(request.message.attachment)}
                         target="_blank"
                         rel="noreferrer"
                       >
@@ -214,7 +212,7 @@ export default function MessageRequestsModal({
                       <button
                         type="button"
                         className="request-action accept"
-                        disabled={isProcessing || !userId}
+                        disabled={Boolean(processingId) || !userId}
                         onClick={() =>
                           handleAction(userId, "accept")
                         }
@@ -228,13 +226,13 @@ export default function MessageRequestsModal({
                           <Check size={15} />
                         )}
 
-                        Accept
+                        Allow chat
                       </button>
 
                       <button
                         type="button"
                         className="request-action reject"
-                        disabled={isProcessing || !userId}
+                        disabled={Boolean(processingId) || !userId}
                         onClick={() =>
                           handleAction(userId, "reject")
                         }
@@ -246,7 +244,7 @@ export default function MessageRequestsModal({
                       <button
                         type="button"
                         className="request-action delete"
-                        disabled={isProcessing || !userId}
+                        disabled={Boolean(processingId) || !userId}
                         onClick={() =>
                           handleAction(userId, "delete")
                         }
@@ -259,7 +257,7 @@ export default function MessageRequestsModal({
                       <button
                         type="button"
                         className="request-action block"
-                        disabled={isProcessing || !userId}
+                        disabled={Boolean(processingId) || !userId}
                         onClick={() =>
                           handleAction(userId, "block")
                         }
@@ -277,15 +275,22 @@ export default function MessageRequestsModal({
         </div>
 
         {/* FOOTER */}
-        <footer className="message-requests-footer">
+        {!inline && <footer className="message-requests-footer">
           <button
             type="button"
             onClick={onClose}
           >
             Done
           </button>
-        </footer>
+        </footer>}
       </section>
+  );
+  if (inline) return panel;
+  return (
+    <div className="message-requests-overlay" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose?.();
+    }}>
+      {panel}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
 import GroupMessage from "../models/GroupMessage.js";
 import Group from "../models/Group.js";
@@ -65,6 +66,13 @@ export function registerMessageReceiptHandlers(io, socket) {
           ok: false,
           message: "Not authorized.",
         });
+      }
+
+      if (!isGroup && await Conversation.exists({
+        conversationKey: message.conversationKey,
+        status: { $in: ["pending", "rejected", "blocked"] },
+      })) {
+        return callback?.({ ok: false, message: "Chat approval is required." });
       }
 
       const now = new Date();

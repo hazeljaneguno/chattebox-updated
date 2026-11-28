@@ -44,7 +44,7 @@ router.get("/requests", requireAuth, async (req, res, next) => {
       requestedBy: { $ne: req.user._id },
       status: "pending",
     })
-      .populate("requestedBy", "_id username")
+      .populate("requestedBy", "_id username profilePicture")
       .sort({ createdAt: -1 })
       .lean();
 
@@ -68,7 +68,9 @@ router.get("/requests", requireAuth, async (req, res, next) => {
     }
 
     return res.json({
-      requests: requests.map((conversation) => {
+      requests: requests.filter((conversation) =>
+        conversation.requestedBy && messageByConversation.has(conversation.conversationKey)
+      ).map((conversation) => {
         const firstMessage = messageByConversation.get(
           conversation.conversationKey
         );
@@ -160,26 +162,20 @@ router.post("/:userId/accept", requireAuth, async (req, res, next) => {
 
     const key = conversationKey(req.user._id, userId);
 
-    const conversation = await Conversation.findOne({
+    const conversation = await Conversation.findOneAndUpdate({
       conversationKey: key,
       participants: req.user._id,
       requestedBy: userId,
       status: "pending",
-    });
+    }, { $set: { status: "accepted", acceptedAt: new Date() } }, { new: true });
 
     if (!conversation) {
-      return res.status(404).json({
-        message: "Pending message request not found.",
-      });
+      return res.status(404).json({ message: "Pending message request not found." });
     }
-
-    conversation.status = "accepted";
-    conversation.acceptedAt = new Date();
-
-    await conversation.save();
 
     const update = {
       conversationKey: key,
+      participantIds: [String(req.user._id), String(userId)],
       status: "accepted",
       acceptedAt: conversation.acceptedAt,
     };
@@ -220,24 +216,20 @@ router.post("/:userId/reject", requireAuth, async (req, res, next) => {
 
     const key = conversationKey(req.user._id, userId);
 
-    const conversation = await Conversation.findOne({
+    const conversation = await Conversation.findOneAndUpdate({
       conversationKey: key,
       participants: req.user._id,
       requestedBy: userId,
       status: "pending",
-    });
+    }, { $set: { status: "rejected" } });
 
     if (!conversation) {
-      return res.status(404).json({
-        message: "Pending message request not found.",
-      });
+      return res.status(404).json({ message: "Pending message request not found." });
     }
-
-    conversation.status = "rejected";
-    await conversation.save();
 
     const update = {
       conversationKey: key,
+      participantIds: [String(req.user._id), String(userId)],
       status: "rejected",
     };
 
@@ -337,25 +329,16 @@ router.post("/:userId/block", requireAuth, async (req, res, next) => {
 
     const key = conversationKey(req.user._id, otherUser._id);
 
-    const conversation = await Conversation.findOne({
+    const conversation = await Conversation.findOneAndUpdate({
       conversationKey: key,
-      participants: req.user._id,
-    });
-
-    if (!conversation) {
-      return res.status(404).json({
-        message: "Conversation not found.",
-      });
-    }
-
-    conversation.status = "blocked";
-    conversation.blockedBy = req.user._id;
-    conversation.blockedAt = new Date();
-
-    await conversation.save();
+    }, {
+      $set: { status: "blocked", blockedBy: req.user._id, blockedAt: new Date() },
+      $setOnInsert: { participants: [req.user._id, otherUser._id], requestedBy: req.user._id },
+    }, { new: true, upsert: true });
 
     const update = {
       conversationKey: key,
+      participantIds: [String(req.user._id), String(userId)],
       status: "blocked",
       blockedBy: String(req.user._id),
       blockedAt: conversation.blockedAt,

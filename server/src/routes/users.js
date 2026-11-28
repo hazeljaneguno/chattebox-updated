@@ -1,6 +1,7 @@
 
 import { Router } from "express";
 import { latestPrivateMessages } from "../services/conversationActivity.js";
+import Conversation from "../models/Conversation.js";
 import User from "../models/User.js";
 import { requireAuth } from "../middleware/requireAuth.js";
 
@@ -43,9 +44,16 @@ router.get("/", requireAuth, async (req, res) => {
     const activity = !search && req.query.includeActivity === "1"
       ? await latestPrivateMessages(req.user._id)
       : null;
+    const conversations = activity
+      ? await Conversation.find({ participants: req.user._id }).select("participants status requestedBy").lean()
+      : [];
+    const byPerson = new Map(conversations.map((conversation) => [
+      conversation.participants.map(String).find((id) => id !== String(req.user._id)),
+      conversation,
+    ]));
     const knownIds = new Set(directory.map((person) => String(person._id)));
     const missingIds = activity
-      ? [...activity.keys()].filter((id) => id !== String(req.user._id) && !knownIds.has(id))
+      ? [...new Set([...activity.keys(), ...byPerson.keys()])].filter((id) => id !== String(req.user._id) && !knownIds.has(id))
       : [];
     const conversationUsers = missingIds.length
       ? await User.find({ _id: { $in: missingIds } }).select("_id username email role profilePicture").lean()
@@ -59,7 +67,10 @@ router.get("/", requireAuth, async (req, res) => {
         profilePicture: user.profilePicture || "",
         email: user.email,
         role: user.role || "member",
-        ...(activity && { latestMessage: activity.get(String(user._id)) || null }),
+        ...(activity && {
+          latestMessage: activity.get(String(user._id)) || null,
+          conversationStatus: byPerson.get(String(user._id))?.status || null,
+        }),
       })),
     });
   } catch (error) {

@@ -224,6 +224,8 @@ export function registerPrivateMessageHandlers(io, socket) {
       // SAVE PRIVATE MESSAGE
       // ==========================================
       const savedMessage = await Message.create({
+        // The pending request can store just one first message, even across devices.
+        ...(conversation.status === "pending" && { _id: conversation._id }),
         conversationKey: key,
         sender: sender._id,
         recipient: recipient._id,
@@ -269,6 +271,7 @@ export function registerPrivateMessageHandlers(io, socket) {
       // ==========================================
       const message = {
         id: savedMessage._id.toString(),
+        conversationStatus: conversation.status,
 
         senderId: savedMessage.sender._id.toString(),
 
@@ -391,6 +394,10 @@ export function registerPrivateMessageHandlers(io, socket) {
       });
 
     } catch (error) {
+      if (error.code === 11000 && error.keyPattern?._id) {
+        return callback?.({ ok: false, message: "Your message request is waiting for approval." });
+      }
+
       console.error("Private message error:", error);
 
       return callback?.({

@@ -45,6 +45,10 @@ if (conversation?.status === "blocked") {
     message: "You cannot send messages in this conversation.",
   });
 }
+    if (conversation?.status === "pending" && String(conversation.requestedBy) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Review this conversation in Message requests." });
+    }
+
     const messages = await Message.find({ 
       conversationKey: key, 
       deletedFor: { $ne: req.user._id }, 

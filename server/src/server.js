@@ -17,6 +17,7 @@ import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
 import chatNotificationRoutes from "./routes/chatNotifications.js";
 import settingsRoutes from "./routes/settings.js";
+import socialRoutes from "./routes/social.js";
 import conversationRoutes from "./routes/conversations.js";
 import groupRoutes from "./routes/groups.js";
 import groupCallRoutes from "./routes/groupCalls.js";
@@ -101,6 +102,7 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/chat-notifications", chatNotificationRoutes);
 
 app.use("/api/conversations", conversationRoutes);
+app.use("/api/social", socialRoutes);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/call-actions", callActionRoutes);

@@ -1,0 +1,415 @@
+/* ==========================================
+   CHAT HEADER - MAIN CONTAINER
+========================================== */
+
+.chat-header {
+  position: relative;
+  z-index: 20;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  width: 100%;
+  min-width: 0;
+  min-height: 66px;
+
+  padding: 10px 16px;
+  box-sizing: border-box;
+
+  background: var(--chat-panel, #ffffff);
+  color: var(--text-color, #24202a);
+
+  border-bottom: 1px solid var(
+    --border-color,
+    #e8e4ef
+  );
+}
+
+/* ==========================================
+   BACK BUTTON - MOBILE
+========================================== */
+
+.chat-header .mobile-back {
+  display: none;
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   CONTACT AVATAR
+========================================== */
+
+.chat-header > .avatar,
+.chat-header > .avatar-container {
+  flex-shrink: 0;
+}
+
+/* ==========================================
+   CONTACT NAME AND STATUS
+========================================== */
+
+.chat-header-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.chat-header-copy h2 {
+  margin: 0;
+
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-header-copy p {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  margin: 0;
+
+  font-size: 12px;
+  line-height: 1.3;
+
+  color: var(--muted-text, #777777);
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Online status indicator */
+
+.chat-header-copy p i {
+  display: inline-block;
+  flex-shrink: 0;
+
+  width: 7px;
+  height: 7px;
+
+  border-radius: 50%;
+  background: #31b86a;
+}
+
+/* ==========================================
+   HEADER ACTIONS
+========================================== */
+
+.chat-header .header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+
+  gap: 5px;
+  flex-shrink: 0;
+
+  margin-left: auto;
+}
+
+/* ==========================================
+   ALL HEADER ICON BUTTONS
+========================================== */
+
+.chat-header .icon-button {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  width: 40px;
+  height: 40px;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 50%;
+
+  background: transparent;
+  color: var(--accent-color, #7555d8);
+
+  cursor: pointer;
+
+  transition:
+    background 0.15s ease,
+    transform 0.15s ease;
+}
+
+.chat-header .icon-button:hover:not(:disabled) {
+  background: var(--hover-color, #eee9f6);
+}
+
+.chat-header .icon-button:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.chat-header .icon-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.chat-header .icon-button:focus-visible {
+  outline: 2px solid var(--accent-color, #7555d8);
+  outline-offset: 2px;
+}
+
+/* ==========================================
+   INFORMATION BUTTON
+========================================== */
+
+.chat-header .chat-info-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  width: 40px;
+  height: 40px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: transparent;
+  color: var(--accent-color, #7555d8);
+
+  cursor: pointer;
+}
+
+.chat-header .chat-info-button:hover {
+  background: var(--hover-color, #eee9f6);
+}
+
+/* ==========================================
+   ACTION DIVIDER
+========================================== */
+
+.chat-header .action-divider {
+  width: 1px;
+  height: 24px;
+
+  margin: 0 4px;
+  flex-shrink: 0;
+
+  background: var(--border-color, #e8e4ef);
+}
+
+/* ==========================================
+   MESSAGE REQUESTS BUTTON
+========================================== */
+
+.chat-header .message-requests-button {
+  position: relative;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  flex-shrink: 0;
+
+  width: 40px;
+  height: 40px;
+
+  overflow: visible;
+}
+
+/* ==========================================
+   MESSAGE REQUEST COUNT BADGE
+========================================== */
+
+.chat-header .request-count {
+  position: absolute;
+
+  top: 0;
+  right: 0;
+
+  transform: translate(20%, -20%);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+
+  box-sizing: border-box;
+
+  border: 2px solid var(--chat-panel, #ffffff);
+  border-radius: 999px;
+
+  background: #ef6262;
+  color: #ffffff;
+
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* ==========================================
+   DARK / NIGHT MODE
+========================================== */
+
+.chat-header-night {
+  background: #292538;
+  color: #f5f1ff;
+
+  border-bottom-color: #49435d;
+}
+
+.chat-header-night .chat-header-copy h2 {
+  color: #f5f1ff;
+}
+
+.chat-header-night .chat-header-copy p {
+  color: #c5bfd4;
+}
+
+.chat-header-night .icon-button,
+.chat-header-night .chat-info-button {
+  color: #c6b5ff;
+}
+
+.chat-header-night .icon-button:hover:not(:disabled),
+.chat-header-night .chat-info-button:hover {
+  background: #403951;
+}
+
+.chat-header-night .action-divider {
+  background: #49435d;
+}
+
+.chat-header-night .request-count {
+  border-color: #292538;
+}
+
+/* ==========================================
+   TABLET
+========================================== */
+
+@media (min-width: 601px) and (max-width: 1024px) {
+  .chat-header {
+    gap: 9px;
+    padding: 10px 12px;
+  }
+
+  .chat-header .header-actions {
+    gap: 3px;
+  }
+
+  .chat-header-copy h2 {
+    font-size: 15px;
+  }
+}
+
+/* ==========================================
+   MOBILE / ANDROID
+========================================== */
+
+@media (max-width: 600px) {
+  .chat-header {
+    min-height: 60px;
+
+    gap: 8px;
+    padding: 8px 10px;
+  }
+
+  .chat-header .mobile-back {
+    display: inline-flex;
+  }
+
+  .chat-header-copy h2 {
+    font-size: 14px;
+  }
+
+  .chat-header-copy p {
+    font-size: 11px;
+  }
+
+  .chat-header .header-actions {
+    gap: 1px;
+  }
+
+  .chat-header .icon-button,
+  .chat-header .chat-info-button {
+    width: 36px;
+    height: 40px;
+  }
+
+  .chat-header .action-divider {
+    height: 20px;
+    margin: 0 2px;
+  }
+
+  .chat-header .request-count {
+    transform: translate(10%, -10%);
+  }
+}
+
+/* ==========================================
+   SMALL MOBILE SCREENS
+========================================== */
+
+@media (max-width: 380px) {
+  .chat-header {
+    gap: 5px;
+    padding: 8px 6px;
+  }
+
+  .chat-header .header-actions {
+    gap: 0;
+  }
+
+  .chat-header .icon-button,
+  .chat-header .chat-info-button {
+    width: 34px;
+  }
+
+  .chat-header-copy h2 {
+    font-size: 13px;
+  }
+
+  .chat-header-copy p {
+    font-size: 10px;
+  }
+
+  .chat-header .action-divider {
+    margin: 0 1px;
+  }
+}
+
+/* ==========================================
+   TOUCHSCREEN SUPPORT
+========================================== */
+
+@media (hover: none) {
+  .chat-header .icon-button,
+  .chat-header .chat-info-button {
+    min-height: 44px;
+  }
+}
+
+/* ==========================================
+   REDUCED MOTION
+========================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-header .icon-button,
+  .chat-header .chat-info-button {
+    transition: none;
+  }
+}

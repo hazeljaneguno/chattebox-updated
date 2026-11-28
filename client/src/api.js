@@ -284,6 +284,11 @@ export const api = {
      USERS
   ======================================= */
 
+  social: () => request("/api/social"),
+
+  updateFriendship: (id, action) =>
+    request(`/api/social/${encodeURIComponent(id)}/${encodeURIComponent(action)}`, { method: "POST" }),
+
   users: (search = "", { includeActivity = false } = {}) =>
     request(
       `/api/users?search=${encodeURIComponent(search)}${includeActivity ? "&includeActivity=1" : ""}`

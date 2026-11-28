@@ -15,8 +15,9 @@ import {
 
 import "./ChatSidebar.css";
 import { typingChatKey } from "../hooks/useTypingIndicator.js";
+import SocialPage from "./SocialPage.jsx";
 import Avatar from "./Avatar.jsx";
-import { formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
+import { isInboxChat, formatChatDate, latestChatMessage, sameId } from "../utils/chatHelpers.js";
 import { getReplyPreview } from "../utils/messageHelpers.js";
 
 export default function ChatSidebar({
@@ -37,7 +38,9 @@ export default function ChatSidebar({
   missedCalls,
   onCallBack,
   messageRequestCount,
-  setShowMessageRequests,
+  messageRequestsPage,
+  socket,
+  onSocialMessage,
   handleLogout,
   selectChat,
   setShowNewChat,
@@ -50,15 +53,18 @@ export default function ChatSidebar({
 }) {
   const activeTab = chatFilter === "active";
   const notificationsTab = chatFilter === "notifications";
-  const menuTab = chatFilter === "menu";
+  const socialTab = chatFilter === "social";
+  const requestsTab = chatFilter === "requests";
+  const menuTab = chatFilter === "menu" || socialTab || requestsTab;
+  const openRequests = () => setChatFilter("requests");
   const messagesTab = !activeTab && !notificationsTab && !menuTab;
-  const title = notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
+  const title = socialTab ? "Chatterbox Social" : requestsTab ? "Message requests" : notificationsTab ? "Notifications" : menuTab ? "Menu" : activeTab ? "People" : "Chats";
   const notificationCount = messageRequestCount + missedCalls.filter((call) => !call.read).length;
   const profileName = user.displayName || user.name || user.username || "Your account";
   const onlineChats = chats.filter(
     (chat) => !chat.isGroup && onlineIds.has(String(chat.id))
   );
-  const unreadCount = chats.reduce((total, chat) => total + (chat.unread || 0), 0);
+  const unreadCount = chats.filter(isInboxChat).reduce((total, chat) => total + (chat.unread || 0), 0);
 
   function openSettings() {
     setShowSettings(true);
@@ -98,12 +104,18 @@ export default function ChatSidebar({
         </label>
       )}
 
-      {notificationsTab ? (
+      {socialTab ? (
+        <SocialPage socket={socket} onBack={() => setChatFilter("menu")} onMessage={onSocialMessage} />
+      ) : requestsTab ? (
+        messageRequestsPage
+      ) : notificationsTab ? (
         <SidebarNotifications
           missedCalls={missedCalls}
           chats={chats}
           messageRequestCount={messageRequestCount}
-          onOpenRequests={() => setShowMessageRequests(true)}
+          onOpenRequests={openRequests}
+          socket={socket}
+          onOpenSocial={() => setChatFilter("social")}
           onCallBack={onCallBack}
         />
       ) : menuTab ? (
@@ -122,10 +134,13 @@ export default function ChatSidebar({
             </button>
           </div>
           <div className="sidebar-page-group">
+            <button type="button" className="sidebar-page-row" onClick={() => setChatFilter("social")}>
+              <UsersRound size={22} aria-hidden="true" /> Friends and suggestions
+            </button>
             <button type="button" className="sidebar-page-row" onClick={() => setChatFilter("groups")}>
               <Users size={22} aria-hidden="true" /> Group chats
             </button>
-            <button type="button" className="sidebar-page-row" onClick={() => setShowMessageRequests(true)}>
+            <button type="button" className="sidebar-page-row" onClick={openRequests}>
               <MessagesSquare size={22} aria-hidden="true" /> Message requests
               {messageRequestCount > 0 && <span className="sidebar-page-badge">{messageRequestCount}</span>}
             </button>
@@ -320,7 +335,7 @@ export default function ChatSidebar({
   );
 }
 
-function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onCallBack }) {
+function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenRequests, onOpenSocial, onCallBack, socket }) {
   const today = new Date().toDateString();
   const todayCalls = [];
   const earlierCalls = [];
@@ -374,6 +389,7 @@ function SidebarNotifications({ missedCalls, chats, messageRequestCount, onOpenR
           <p>Missed calls and message requests will appear here.</p>
         </div>
       )}
+      <SocialPage compact socket={socket} onOpenSocial={onOpenSocial} />
     </section>
   );
 }

@@ -47,7 +47,7 @@ export default function useChatMessages({
         : message.senderId;
 
       if (!otherId) return;
-      acknowledgeDelivery(message, "message:receipt");
+      if (message.conversationStatus !== "pending") acknowledgeDelivery(message, "message:receipt");
       const isActive = sameId(activeIdRef.current, otherId);
       const isOwnMessage = sameId(message.senderId, user.id);
 
@@ -56,8 +56,10 @@ export default function useChatMessages({
           return [...previous, {
             id: otherId,
             username: (isOwnMessage ? message.recipientName : message.senderName) || "Chat",
+            profilePicture: isOwnMessage ? undefined : message.senderProfilePicture,
+            conversationStatus: message.conversationStatus,
             messages: [message],
-            unread: isActive || isOwnMessage ? 0 : 1,
+            unread: isActive || isOwnMessage || message.conversationStatus === "pending" ? 0 : 1,
           }];
         }
 
@@ -68,8 +70,10 @@ export default function useChatMessages({
 
           return {
             ...chat,
+            conversationStatus: message.conversationStatus ?? chat.conversationStatus,
             messages: [...messages, message],
-            unread: (chat.unread || 0) + (isActive || isOwnMessage ? 0 : 1),
+            unread: (chat.unread || 0) +
+              (isActive || isOwnMessage || message.conversationStatus === "pending" ? 0 : 1),
           };
         });
       });
@@ -125,6 +129,18 @@ export default function useChatMessages({
       );
     }
 
+    function handleConversationStatus({ participantIds, status } = {}) {
+      const otherId = participantIds?.find((id) => !sameId(id, user.id));
+      if (!otherId) return;
+      setChats((previous) => previous.map((chat) =>
+        !chat.isGroup && sameId(chat.id, otherId)
+          ? { ...chat, conversationStatus: status, unread: 0 }
+          : chat
+      ));
+    }
+
+    const statusEvents = ["conversation:request:accepted", "conversation:request:rejected", "conversation:blocked"];
+    statusEvents.forEach((event) => socket.on(event, handleConversationStatus));
     socket.on("message:new", handleDirectMessage);
     socket.on("group:message:new", handleGroupMessage);
     socket.on("message:updated", handleMessageUpdated);
@@ -132,6 +148,7 @@ export default function useChatMessages({
     socket.on("group:message:receipt", handleReceipt);
 
     return () => {
+      statusEvents.forEach((event) => socket.off(event, handleConversationStatus));
       socket.off("message:new", handleDirectMessage);
       socket.off("group:message:new", handleGroupMessage);
       socket.off("message:updated", handleMessageUpdated);

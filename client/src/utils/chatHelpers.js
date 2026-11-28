@@ -40,3 +40,8 @@ export function formatChatDate(value, today = new Date()) {
     ...(date.getFullYear() !== today.getFullYear() && { year: "numeric" }),
   }).format(date);
 }
+
+export function isInboxChat(chat) {
+  if (chat.isGroup || chat.conversationStatus === "accepted") return true;
+  return !chat.conversationStatus && Boolean(latestChatMessage(chat));
+}

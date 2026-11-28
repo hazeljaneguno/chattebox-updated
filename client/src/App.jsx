@@ -40,7 +40,7 @@ import {
 } from "./services/pushNotifications.js";
 
 import { api, connectSocket } from "./api.js";
-import { canAddGroupMembers, latestChatMessage, messageTimestamp, sameId } from "./utils/chatHelpers.js";
+import { isInboxChat, canAddGroupMembers, latestChatMessage, messageTimestamp, sameId } from "./utils/chatHelpers.js";
 import useTypingIndicator from "./hooks/useTypingIndicator.js";
 import useMessageActions from "./hooks/useMessageActions.js";
 import useChatMessages from "./hooks/useChatMessages.js";
@@ -516,10 +516,10 @@ useEffect(() => {
 
 // Refresh when the modal opens.
 useEffect(() => {
-  if (!user || !showMessageRequests) return;
+  if (!user || (!showMessageRequests && chatFilter !== "requests")) return;
 
   loadMessageRequests();
-}, [user, showMessageRequests, loadMessageRequests]);
+}, [user, showMessageRequests, chatFilter, loadMessageRequests]);
 
 useEffect(() => {
   const userId = user?.id ?? user?._id ?? user?.userId;
@@ -598,14 +598,16 @@ useEffect(() => {
   useEffect(() => {
     if (!socket) return;
 
-    function handleNewMessage() {
-      loadMessageRequests();
-    }
-
-    socket.on("message:new", handleNewMessage);
-
+    const requestEvents = [
+      "message:new",
+      "conversation:request:accepted",
+      "conversation:request:rejected",
+      "conversation:blocked",
+      "connect",
+    ];
+    requestEvents.forEach((event) => socket.on(event, loadMessageRequests));
     return () => {
-      socket.off("message:new", handleNewMessage);
+      requestEvents.forEach((event) => socket.off(event, loadMessageRequests));
     };
   }, [socket, loadMessageRequests]);
 
@@ -777,19 +779,15 @@ useEffect(() => {
 ]);
 
   function handleAcceptedRequest(userId) {
-    const requestedUser = chats.find((chat) =>
-      sameId(chat.id, userId)
-    );
-
-    if (requestedUser) {
-      selectChat({
-        ...requestedUser,
-        conversationStatus: "accepted",
-      });
+    const chat = chats.find((item) => !item.isGroup && sameId(item.id, userId));
+    const sender = messageRequests.find(({ user }) => sameId(user?.id ?? user?._id, userId))?.user;
+    if (chat || sender) {
+      setShowMessageRequests(false);
+      setChatFilter("all");
+      selectChat({ ...(chat || sender), id: userId, conversationStatus: "accepted" });
     }
-
-    loadMessageRequests();
   }
+
 function notifyCallMessage(chatId, message) {
   if (!chatId || !message) return;
 
@@ -2115,7 +2113,7 @@ useEffect(() => {
         (chatFilter === "unread" && (chat.unread || 0) > 0) ||
         (chatFilter === "groups" && chat.isGroup === true);
 
-      return matchesSearch && matchesFilter;
+      return matchesSearch && matchesFilter && isInboxChat(chat);
     });
     return matchingChats
       .map((chat) => ({ chat, timestamp: messageTimestamp(latestChatMessage(chat)) }))
@@ -2423,7 +2421,7 @@ useEffect(() => {
     return () => {
       cancelled = true;
     };
-  }, [user, activeId, activeChat?.isGroup]);
+  }, [user, activeId, activeChat?.isGroup, activeChat?.conversationStatus]);
 
   // =========================
   // 34. SCROLL TO LATEST MESSAGE
@@ -2463,6 +2461,15 @@ useEffect(() => {
   // =========================
 
   function selectChat(person) {
+    if (!person.isGroup && person.conversationStatus !== "accepted" && messageRequests.some(
+      ({ user }) => sameId(user?.id ?? user?._id, person.id)
+    )) {
+      setChatFilter("requests");
+      setShowNewChat(false);
+      setMobileChatOpen(false);
+      return;
+    }
+
     addOrUpdateChat({
       ...person,
       unread: 0,
@@ -3107,7 +3114,22 @@ const typingMessage =
             void handleStartCall(chat, call.callType || "audio");
           }}
           messageRequestCount={messageRequests.length}
-          setShowMessageRequests={setShowMessageRequests}
+          socket={socket}
+          onSocialMessage={(person) => {
+            const chat = chats.find((item) => !item.isGroup && sameId(item.id, person.id));
+            selectChat(chat || person);
+          }}
+          messageRequestsPage={
+            <MessageRequestsModal
+              inline
+              requests={messageRequests}
+              loading={loadingRequests}
+              onClose={() => setChatFilter("menu")}
+              onRequestUpdated={loadMessageRequests}
+              onAccepted={handleAcceptedRequest}
+              showNotice={showNotice}
+            />
+          }
           handleLogout={handleLogout}
           selectChat={selectChat}
           setShowNewChat={setShowNewChat}
@@ -3238,11 +3260,20 @@ onAction={async (action, payload) => {
       break;
 
     case "block-contact":
-      if (selectedChat.isGroup) return;
-
-      showNotice(
-        "Blocking requires a backend endpoint."
-      );
+    case "block":
+      if (selectedChat.isGroup || !window.confirm("Block private messages and calls from this person?")) return;
+      try {
+        await api.blockConversation(selectedChat.id);
+        setChats((previous) => previous.map((chat) =>
+          !chat.isGroup && sameId(chat.id, selectedChat.id)
+            ? { ...chat, conversationStatus: "blocked", unread: 0 }
+            : chat
+        ));
+        setShowChatDetails(false);
+        showNotice("Conversation blocked.");
+      } catch (error) {
+        showNotice(error.message || "Could not block this conversation.");
+      }
       break;
 
     case "report-technical-problem":
@@ -3367,7 +3398,13 @@ onAction={async (action, payload) => {
   </div>
 )}
 
-<MessageComposer
+{!activeChat.isGroup && ["pending", "rejected", "blocked"].includes(activeChat.conversationStatus) ? (
+  <p className="chat-request-status" role="status">
+    {activeChat.conversationStatus === "pending" ? "Chat is waiting for approval." :
+      activeChat.conversationStatus === "blocked" ? "This conversation is blocked." :
+        "The message request was declined."}
+  </p>
+) : <MessageComposer
   key={`composer:${activeChat.isGroup ? "group" : "private"}:${activeChat.id}`}
   draft={draft}
   setDraft={setDraft}
@@ -3381,7 +3418,7 @@ onAction={async (action, payload) => {
       ? activeChat.members || []
       : []
   }
-/>
+/>}
 
 
           </>
